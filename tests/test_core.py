@@ -6,6 +6,7 @@ import os
 import shutil
 import sys
 import tempfile
+import time
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib"))
@@ -470,6 +471,43 @@ class TestBinaryPathSetting(unittest.TestCase):
         self.assertEqual(self.app.input_buf, "")
 
 
+class TestUiScan(unittest.TestCase):
+    def test_scan_runs_in_ui_process_without_daemon(self):
+        tmp = tempfile.mkdtemp()
+        cfg = cfgmod.Config(home=tmp, overrides={"scan": {"path": tmp}})
+        from tctui import ui
+        app = ui.App(cfg)
+        app.view.daemon_alive = False
+        app.view.hb = {}
+
+        class FakePlanner:
+            def __init__(self, cfg, db):
+                self.skips = []
+
+            def plan(self, roots, progress=None):
+                if progress:
+                    progress("fake")
+                return [{"src": os.path.join(roots[0], "x.mp4"), "src_size": 1}]
+
+        orig = ui.scanmod.Planner
+        ui.scanmod.Planner = FakePlanner
+        try:
+            app.start_scan()
+            for _ in range(100):
+                if app.scan_state.get("done"):
+                    break
+                time.sleep(0.01)
+            self.assertTrue(app.scan_state.get("done"))
+            self.assertEqual(app.scan_state.get("added"), 1)
+            app.reload()
+            self.assertIn("扫描完成", app.toast[0])
+            db = DB(cfg.db_path()).init()
+            self.assertEqual(len(db.jobs()), 1)
+            db.close()
+        finally:
+            ui.scanmod.Planner = orig
+
+
 class TestStatusBadges(unittest.TestCase):
     def test_title_and_footer_show_states(self):
         tmp = tempfile.mkdtemp()
@@ -720,6 +758,7 @@ class TestUiInput(unittest.TestCase):
     def test_path_scan_sets_persistent_path(self):
         d = os.path.join(self.tmp, "电影", "合集")
         os.makedirs(d)
+        self.app.start_scan = lambda: self.sent.append(("scan", None))
         self.app.action("a")
         self.assertTrue(self.app.input_mode)
         self._type(d)
@@ -747,6 +786,7 @@ class TestUiInput(unittest.TestCase):
 
     def test_empty_path_scans_configured(self):
         self.cfg.set("scan.path", self.tmp)
+        self.app.start_scan = lambda: self.sent.append(("scan", None))
         self.app.action("a")
         self.app.action("\n")
         self.assertEqual(self.sent[-1][0], "scan")

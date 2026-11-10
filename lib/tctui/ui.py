@@ -14,11 +14,13 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import unicodedata
 
 from . import config as cfgmod
 from . import gpu, util
+from . import scan as scanmod
 from .db import DB
 
 # ------------------------------------------------------------------ styles
@@ -292,7 +294,7 @@ HELP_ENTRIES = [
     ("任务", "r", "重试选中任务（失败/取消/中断/保留）"),
     ("任务", "d", "显示/隐藏详情面板"),
     ("任务", "l", "详情面板切换为任务日志"),
-    ("队列", "s", "扫描当前路径（扫描时底栏显示“扫描中”）"),
+    ("队列", "s", "扫描当前路径（不需要 daemon，暂停派发也能扫）"),
     ("队列", "a", "设置扫描路径（替换）并立即扫描"),
     ("队列", "C", "清空排队任务（连按两次确认）"),
     ("队列", "T", "清零累计统计（连按两次确认）"),
@@ -397,6 +399,7 @@ class App:
         self.last_refresh = 0.0
         self.log_scroll = 0
         self.refresh_seconds = float(cfg.get("ui.refresh_seconds") or 1.0)
+        self.scan_state = {}
         self._db = None
 
     # -------------------------------------------------------------- data
@@ -423,6 +426,13 @@ class App:
         self.toast = (msg, time.time())
 
     def reload(self):
+        st = self.scan_state
+        if st and st.get("done") and not st.get("notified"):
+            st["notified"] = True
+            if st.get("error"):
+                self.notify("扫描失败: %s" % st["error"])
+            else:
+                self.notify("扫描完成：新增 %d，跳过 %d" % (st.get("added", 0), st.get("skips", 0)))
         v = self.view
         v.ts = time.time()
         if self.demo:
@@ -590,7 +600,7 @@ class App:
 
         alive = v.daemon_alive
         paused = bool(v.hb.get("paused"))
-        scanning = v.hb.get("busy") == "scanning"
+        scanning = bool(self.scan_state.get("running")) or v.hb.get("busy") == "scanning"
         states = []
         if scanning:
             states.append("扫描中")
@@ -640,12 +650,29 @@ class App:
                 scr.put(y, px, "扫描 ", S["title"])
                 scr.put(y, px + 5, shown,
                         S["pause"] if not path else S["title"])
-        mid = " 多卡 NVENC 转码调度 "
         mx = left_w + 2
         limit = path_x if path_x is not None else bx
-        if mx + util.disp_width(mid) + 2 < limit:
-            scr.put(y, mx, mid, S["title"])
+        hint = self._scan_hint()
+        if hint:
+            seg = " %s " % hint
+            if mx + util.disp_width(seg) + 2 < limit:
+                scr.put(y, mx, seg, S["scan"])
+        else:
+            mid = " 多卡 NVENC 转码调度 "
+            if mx + util.disp_width(mid) + 2 < limit:
+                scr.put(y, mx, mid, S["title"])
         return y + 1
+
+    def _scan_hint(self):
+        st = self.scan_state
+        if not st.get("running"):
+            return ""
+        phase = st.get("phase") or ""
+        if phase.startswith("probing "):
+            return "扫描中 " + phase[len("probing "):]
+        if phase.startswith("scanning: "):
+            return "扫描中 " + phase[len("scanning: "):].replace(" files", " 文件")
+        return "扫描中"
 
     def draw_summary(self, scr, y, w):
         v = self.view
@@ -959,7 +986,7 @@ class App:
     def _footer_items(self):
         v = self.view
         paused = bool(v.hb.get("paused"))
-        scanning = v.hb.get("busy") == "scanning"
+        scanning = bool(self.scan_state.get("running")) or v.hb.get("busy") == "scanning"
         items = [("q", "退出", "q", None), ("?", "帮助", "?", None),
                  ("Space", "暂停中" if paused else "暂停", " ",
                   "pause" if paused else None),
@@ -1391,12 +1418,7 @@ class App:
                 self.command("resume" if paused else "pause")
                 self.notify("已%s派发" % ("恢复" if paused else "暂停"))
             elif act == "scan":
-                path = self.cfg.get("scan.path") or ""
-                if not path:
-                    self.notify("还没有设置扫描路径，按 a 设置")
-                else:
-                    self.command("scan")
-                    self.notify("开始扫描: %s" % path)
+                self.start_scan()
             elif act == "clear_queue":
                 if self.confirm and self.confirm.get("action") == "clear_queue":
                     self.confirm = None
@@ -1644,15 +1666,7 @@ class App:
         elif key in (" ",):
             self.command("resume" if self.view.hb.get("paused") else "pause")
         elif key == "s":
-            path = self.cfg.get("scan.path") or ""
-            if not path:
-                self.notify("还没有设置扫描路径，按 a 设置")
-                return
-            self.command("scan")
-            if self.view.daemon_alive:
-                self.notify("开始扫描: %s" % path)
-            else:
-                self.notify("扫描已排队；守护进程未运行，按 D 启动后自动执行")
+            self.start_scan()
         elif key in ("a", "A"):
             self.input_mode = True
             self.input_kind = "path"
@@ -1864,28 +1878,64 @@ class App:
             self.notify("demo 模式不扫描")
             return
         raw = (raw or "").strip()
-        if not raw:
-            path = self.cfg.get("scan.path") or ""
-            if not path:
-                self.notify("还没有设置扫描路径，按 a 输入一个目录")
-                return
-        else:
+        if raw:
             path = os.path.abspath(os.path.expanduser(raw))
             if not os.path.isdir(path):
                 self.notify("目录不存在: %s" % path)
                 return
-            # one persistent path: setting it again replaces the old one
             self.cfg.set("scan.path", path)
             try:
                 self.cfg.save()
             except OSError as exc:
                 self.notify("保存失败: %r" % exc)
                 return
-        self.command("scan")
-        if not self.view.daemon_alive and not self.demo:
-            self.notify("扫描路径已设为 %s；扫描已排队，按 D 启动后执行" % path)
-        else:
-            self.notify("扫描路径已设为 %s，开始扫描" % path)
+        self.start_scan()
+
+    def start_scan(self):
+        """Scan from the UI process: works with the daemon stopped or paused."""
+        if self.demo:
+            self.notify("demo 模式不扫描")
+            return
+        path = self.cfg.get("scan.path") or ""
+        if not path:
+            self.notify("还没有设置扫描路径，按 a 设置")
+            return
+        if not os.path.isdir(path):
+            self.notify("扫描路径不存在: %s" % path)
+            return
+        if self.scan_state.get("running"):
+            self.notify("扫描正在进行中: %s" % self.scan_state.get("phase", ""))
+            return
+        if self.view.hb.get("busy") == "scanning":
+            self.notify("守护进程正在扫描，稍后再试")
+            return
+        state = {"running": True, "done": False, "notified": False,
+                 "path": path, "phase": "starting", "added": 0, "skips": 0,
+                 "started": time.time(), "error": ""}
+        self.scan_state = state
+        t = threading.Thread(target=self._scan_worker, args=(path, state), daemon=True)
+        t.start()
+        self.notify("开始扫描: %s" % path)
+
+    def _scan_worker(self, path, state):
+        db = None
+        try:
+            db = DB(self.cfg.db_path()).init()
+            planner = scanmod.Planner(self.cfg, db)
+            jobs = planner.plan([path], progress=lambda m: state.update(phase=m))
+            added = 0
+            for job in jobs:
+                if state.get("cancel"):
+                    break
+                db.add_job(job)
+                added += 1
+            state.update(running=False, done=True, added=added,
+                         skips=len(planner.skips), phase="done")
+        except Exception as exc:  # noqa: BLE001
+            state.update(running=False, done=True, error=repr(exc), phase="failed")
+        finally:
+            if db:
+                db.close()
 
     def _start_daemon(self):
         if self.demo:
