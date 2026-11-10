@@ -843,7 +843,7 @@ class App:
         c_eta = c_fps + 5
         scr.hline(y, 0, w, "─", S["dim"], title="任务 %d/%d" % (len(jobs), len(v.jobs)))
         y += 1
-        head = util.pad_disp(" #", c_st - c_id)
+        head = util.pad_disp("序号", c_st - c_id)
         head += util.pad_disp("状态", c_st and 6)
         scr.put(y, c_id, head, S["head"])
         scr.put(y, c_path, util.pad_disp("文件", path_w), S["head"])
@@ -876,7 +876,7 @@ class App:
             is_sel = (i == sel)
             base = S["sel"] if is_sel else S["norm"]
             scr.fill(y, 0, w, " ", base)
-            scr.put(y, c_id, str(j["id"]), S["sel"] if is_sel else S["dim"])
+            scr.put(y, c_id, "%4d" % (i + 1), S["sel"] if is_sel else S["dim"])
             scr.put(y, c_st, util.pad_disp(self._job_stage(j), 6), S["sel"] if is_sel else STATUS_STYLE.get(st, S["norm"]))
             src = j.get("src") or ""
             name = self._pretty_path(src)
