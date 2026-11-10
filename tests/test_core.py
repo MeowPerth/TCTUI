@@ -61,11 +61,11 @@ class TestConfig(unittest.TestCase):
         tmp = tempfile.mkdtemp()
         path = os.path.join(tmp, "config.json")
         with open(path, "w") as fh:
-            json.dump({"encode": {"cq": 30}, "watch": ["/x"]}, fh)
+            json.dump({"encode": {"cq": 30}, "scan": {"path": "/x"}}, fh)
         cfg = cfgmod.Config(home=tmp, path=path)
         self.assertEqual(cfg.get("encode.cq"), 30)
         self.assertEqual(cfg.get("encode.preset"), "p7")      # default kept
-        self.assertEqual(cfg.get("watch"), ["/x"])
+        self.assertEqual(cfg.get("scan.path"), "/x")
         cfg.set("gpu.prefer", "least-loaded")
         cfg.save()
         cfg2 = cfgmod.Config(home=tmp, path=path)
@@ -122,7 +122,7 @@ class TestPlanner(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
         self.cfg = cfgmod.Config(home=self.tmp,
-                                 overrides={"watch": [self.tmp], "scan": {"min_size_mb": 0}})
+                                 overrides={"scan": {"path": self.tmp, "min_size_mb": 0}})
         self.db = DB(self.cfg.db_path()).init()
 
     def tearDown(self):
@@ -220,7 +220,7 @@ class TestSettingsPanel(unittest.TestCase):
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
-        self.cfg = cfgmod.Config(home=self.tmp, overrides={"watch": [], "encode": {"cq": 27}})
+        self.cfg = cfgmod.Config(home=self.tmp, overrides={"encode": {"cq": 27}})
         from tctui import ui
         self.ui = ui
         self.app = ui.App(self.cfg)
@@ -322,7 +322,7 @@ class TestSettingsPanel(unittest.TestCase):
 class TestClearQueue(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
-        self.cfg = cfgmod.Config(home=self.tmp, overrides={"watch": []})
+        self.cfg = cfgmod.Config(home=self.tmp, overrides={})
         from tctui import ui
         self.ui = ui
         self.db = DB(self.cfg.db_path()).init()
@@ -379,6 +379,17 @@ class TestManualLimitMigration(unittest.TestCase):
         self.assertEqual(cfg.get("gpu.max_parallel_per_gpu"), 4)
 
 
+class TestScanPathMigration(unittest.TestCase):
+    def test_old_watch_list_becomes_last_path(self):
+        tmp = tempfile.mkdtemp()
+        path = os.path.join(tmp, "config.json")
+        with open(path, "w") as fh:
+            json.dump({"watch": ["/old/a", "/old/b"]}, fh)
+        cfg = cfgmod.Config(home=tmp)
+        self.assertEqual(cfg.get("scan.path"), "/old/b")
+        self.assertIsNone(cfg.get("watch"))
+
+
 class TestTruncateMiddle(unittest.TestCase):
     def test_middle_keeps_both_ends(self):
         s = "/volume2/video/动画/白蛇：缘起/白蛇：缘起.mp4"
@@ -403,7 +414,7 @@ class TestBinaryPathSetting(unittest.TestCase):
     def setUp(self):
         from unittest import mock
         self.tmp = tempfile.mkdtemp()
-        self.cfg = cfgmod.Config(home=self.tmp, overrides={"watch": []})
+        self.cfg = cfgmod.Config(home=self.tmp, overrides={})
         from tctui import ui
         self.ui = ui
         self.app = ui.App(self.cfg)
@@ -462,7 +473,7 @@ class TestBinaryPathSetting(unittest.TestCase):
 class TestGpuPanel(unittest.TestCase):
     def test_no_other_vram_column_and_no_dots(self):
         tmp = tempfile.mkdtemp()
-        cfg = cfgmod.Config(home=tmp, overrides={"watch": []})
+        cfg = cfgmod.Config(home=tmp, overrides={})
         from tctui import ui
         app = ui.App(cfg, demo=True)
         app.reload()
@@ -481,7 +492,7 @@ class TestGpuPanel(unittest.TestCase):
 class TestFooterHelp(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
-        self.cfg = cfgmod.Config(home=self.tmp, overrides={"watch": []})
+        self.cfg = cfgmod.Config(home=self.tmp, overrides={})
         from tctui import ui
         self.ui = ui
         self.app = ui.App(self.cfg)
@@ -620,7 +631,7 @@ class TestCommandDedupe(unittest.TestCase):
 class TestClearStats(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
-        self.cfg = cfgmod.Config(home=self.tmp, overrides={"watch": []})
+        self.cfg = cfgmod.Config(home=self.tmp, overrides={})
         from tctui import ui
         self.ui = ui
         self.db = DB(self.cfg.db_path()).init()
@@ -667,7 +678,7 @@ class TestClearStats(unittest.TestCase):
 class TestUiInput(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
-        self.cfg = cfgmod.Config(home=self.tmp, overrides={"watch": []})
+        self.cfg = cfgmod.Config(home=self.tmp, overrides={})
         from tctui import ui
         self.ui = ui
         self.app = ui.App(self.cfg)
@@ -680,7 +691,7 @@ class TestUiInput(unittest.TestCase):
         for ch in text:
             self.app.action(ch)
 
-    def test_path_scan_adds_watch(self):
+    def test_path_scan_sets_persistent_path(self):
         d = os.path.join(self.tmp, "电影", "合集")
         os.makedirs(d)
         self.app.action("a")
@@ -688,18 +699,18 @@ class TestUiInput(unittest.TestCase):
         self._type(d)
         self.app.action("\n")
         self.assertFalse(self.app.input_mode)
+        self.assertEqual(self.cfg.get("scan.path"), d)
         self.assertEqual(self.sent[-1][0], "scan")
-        self.assertEqual(self.sent[-1][1]["roots"], [d])
 
-    def test_path_scan_relative_and_covered(self):
-        d = os.path.join(self.tmp, "lib")
-        os.makedirs(os.path.join(d, "sub"))
-        self.cfg.set("watch", [d])
+    def test_path_scan_replaces_previous(self):
+        first = os.path.join(self.tmp, "first")
+        second = os.path.join(self.tmp, "second")
+        os.makedirs(first); os.makedirs(second)
+        self.cfg.set("scan.path", first)
         self.app.action("a")
-        self._type(os.path.join(d, "sub"))
+        self._type(second)
         self.app.action("\n")
-        self.assertEqual(self.sent[-1][1]["roots"], [os.path.join(d, "sub")])
-        self.assertEqual(self.cfg.get("watch"), [d])       # already covered, not duplicated
+        self.assertEqual(self.cfg.get("scan.path"), second)
 
     def test_path_scan_missing_dir(self):
         self.app.action("a")
@@ -708,35 +719,29 @@ class TestUiInput(unittest.TestCase):
         self.assertEqual(self.sent, [])
         self.assertIn("不存在", self.app.toast[0])
 
-    def test_empty_path_scans_watch(self):
-        self.cfg.set("watch", [self.tmp])
+    def test_empty_path_scans_configured(self):
+        self.cfg.set("scan.path", self.tmp)
         self.app.action("a")
         self.app.action("\n")
-        self.assertEqual(self.sent[-1][1]["roots"], [self.tmp])
-
-    def test_path_scan_is_one_off(self):
-        d = os.path.join(self.tmp, "其他")
-        os.makedirs(d)
-        before = list(self.cfg.get("watch"))
-        self.app.action("a")
-        self._type(d)
-        self.app.action("\n")
-        self.assertEqual(list(self.cfg.get("watch")), before)   # watch untouched
         self.assertEqual(self.sent[-1][0], "scan")
-        self.assertEqual(self.sent[-1][1]["roots"], [d])
+        self.assertEqual(self.cfg.get("scan.path"), self.tmp)
 
-    def test_watch_editor_saves_list(self):
-        a = os.path.join(self.tmp, "a")
-        b = os.path.join(self.tmp, "b")
-        os.makedirs(a); os.makedirs(b)
+    def test_scan_path_setting(self):
+        d = os.path.join(self.tmp, "library")
+        os.makedirs(d)
         self.app._open_settings()
         rows = self.app._settings_rows()
-        row = [r for r in rows if r.get("key") == "watch"][0]
+        row = [r for r in rows if r.get("key") == "scan.path"][0]
         self.app._change_setting(row, 1)
-        self.assertEqual(self.app.input_kind, "watch")
-        self.app.input_buf = "%s, %s" % (a, b)
+        self.assertEqual(self.app.input_kind, "scanpath")
+        self.app.input_buf = d
         self.app.action("\n")
-        self.assertEqual(self.cfg.get("watch"), [a, b])
+        self.assertEqual(self.cfg.get("scan.path"), d)
+
+    def test_scan_without_path_warns(self):
+        self.app.action("s")
+        self.assertEqual(self.sent, [])
+        self.assertIn("还没有设置", self.app.toast[0])
 
     def test_D_toggles_daemon(self):
         started = []

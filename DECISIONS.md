@@ -177,7 +177,7 @@ and the filter 'auto_scale_0'（退出码 -38）
 ## 16.5 取消/中断的任务会再次入队
 
 `canceled` / `interrupted` 不会写进 processed，所以下一次扫描会重新排队（方便修好后重跑）。
-如果不想这样，把文件移出 watch 目录，或把 `scan.min_size_mb` 调大临时避开。
+如果不想这样，把文件移出扫描路径，或把 `scan.min_size_mb` 调大临时避开。
 
 ## 16.8 驱动把 NVENC 会话上限做成了"全系统共享"
 

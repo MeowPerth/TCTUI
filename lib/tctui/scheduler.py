@@ -578,11 +578,12 @@ class Scheduler:
         self.log("info", "任务 #%s 重新入队" % jid)
 
     # ------------------------------------------------------------------ scanning
-    def start_scan(self, roots=None):
-        roots = roots or self.cfg.get("watch") or []
-        if not roots:
-            self.log("warn", "没有配置扫描目录")
+    def start_scan(self):
+        path = self.cfg.get("scan.path") or ""
+        if not path:
+            self.log("warn", "还没有设置扫描路径（界面按 a，或 tctui config --set scan.path=/path）")
             return
+        roots = [path]
         if self._scan_lock.locked():
             return
         t = threading.Thread(target=self._scan_thread, args=(roots,), daemon=True)

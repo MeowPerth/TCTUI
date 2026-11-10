@@ -54,7 +54,7 @@ cd /volume1/docker/ffmpeg-tui
 每一项都**立即写入 `config.json`** 并显示"已保存，2 秒内生效"。
 另外按数字键 `1`–`9` 也能直接开关显卡。
 
-其余（`watch` 路径、数组型参数如 `extra_args`、`gpu.vram_per_job_mb` 等）仍然在文件里改。
+其余（数组型参数如 `extra_args`、`gpu.vram_per_job_mb` 等）仍然在文件里改。
 
 ---
 
@@ -84,7 +84,7 @@ cd /volume1/docker/ffmpeg-tui
 | `paths.ffmpeg` | 你的 7.1.3 静态版 | ffmpeg 绝对路径 |
 | `paths.ffprobe` | 同上目录 | ffprobe 绝对路径 |
 | `paths.nvidia_smi` | `nvidia-smi` | 可用绝对路径 |
-| `watch` | `[".../testdata"]` | 要扫描的目录，可写多个。daemon 启动/按 `s` 时扫这些目录 |
+| `path` | `""`（第一次安装为空） | **唯一的扫描目录**。按 `a` 或设置面板设置后会一直用它；再设置会替换。daemon 启动/按 `s` 扫这个目录 |
 | `state_dir` | 空 = `<安装目录>/state` | 任务库/显卡缓存位置，一般不用改 |
 
 ## 扫描 `scan.*`
@@ -100,7 +100,7 @@ cd /volume1/docker/ffmpeg-tui
 | `skip_if_pix_fmt_10bit` | `false` | true 时 10bit 源一律跳过 |
 | `follow_symlinks` | `false` | 是否跟随软链接 |
 | `max_files_per_scan` | `20000` | 单次扫描上限，防手滑扫到根目录 |
-| `on_start` | `true` | daemon 启动且队列为空时自动扫描 `watch` |
+| `on_start` | `true` | daemon 启动且队列为空、且已设置 `scan.path` 时自动扫描它 |
 | `import_legacy_log` | `true` | 首次扫描导入旧脚本的 `video_transcode_log.txt` |
 | `legacy_log_name` | `video_transcode_log.txt` | 旧日志文件名 |
 
@@ -180,7 +180,7 @@ cd /volume1/docker/ffmpeg-tui
 ### A. 稳健默认（推荐先用这套）
 ```json
 {
-  "watch": ["/volume1/docker/ffmpeg-tui/testdata"],
+  "scan": {"path": "/volume2/video"},
   "policy": {"keep_original_min_savings_pct": 10},
   "encode": {"preset": "p7", "cq": 27, "out_ext": "mkv", "audio": "copy"}
 }
@@ -210,7 +210,7 @@ cd /volume1/docker/ffmpeg-tui
 
 | 改了什么 | 怎么生效 |
 |---|---|
-| `watch` / `scan.*` / `series.*` / `encode.*` / `policy.*` | 保存即生效（daemon 2 秒内热加载）；排队中的任务在下次派发时用新参数，正在跑的任务不受影响 |
+| `scan.path` / `scan.*` / `series.*` / `encode.*` / `policy.*` | 保存即生效（daemon 2 秒内热加载）；排队中的任务在下次派发时用新参数，正在跑的任务不受影响 |
 | `gpu.exclude` / `gpu.max_parallel_per_gpu` | 保存后 2 秒热加载 |
 | `paths.*` / `state_dir` | 需要 `./tctui daemon --stop && ./tctui daemon --start` |
 | 界面里的 `1-9` | 立即生效，并写回 `config.json` |

@@ -154,9 +154,10 @@ def cmd_scan(args):
     if missing:
         print("【错误】找不到可执行文件: " + "; ".join(missing))
         return 2
-    roots = [os.path.abspath(p) for p in (args.paths or cfg.get("watch") or [])]
+    configured = cfg.get("scan.path") or ""
+    roots = [os.path.abspath(p) for p in (args.paths or ([configured] if configured else []))]
     if not roots:
-        print("没有扫描路径，请用 `tctui scan /path` 或设置 config.json watch")
+        print("还没有设置扫描路径：用 `tctui scan /path`，或 `tctui config --set scan.path=/path`")
         return 2
     db = DB(cfg.db_path()).init()
     planner = scan.Planner(cfg, db)
@@ -325,8 +326,8 @@ def find_orphans(cfg, min_age_hours=0.0):
     known = set()
     out = []
     now = util.now()
-    roots = cfg.get("watch") or []
-    for root in roots:
+    configured = cfg.get("scan.path") or ""
+    for root in ([configured] if configured else []):
         for dirpath, dirnames, filenames in os.walk(root):
             dirnames[:] = [d for d in dirnames if not d.startswith("@")]
             for name in filenames:

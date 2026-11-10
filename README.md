@@ -33,10 +33,11 @@ cd /path/to/tctui
 
 ./tctui doctor            # 环境自检：ffmpeg / 显卡 / 任务库 / 残留文件
 ./tctui                   # 打开 TUI
-./tctui daemon --start    # 也可以命令行启动调度器（默认扫描 config.json 的 watch）
+./tctui daemon --start    # 也可以命令行启动调度器（扫描 config.json 的 scan.path）
 ```
 
-界面里从零开始：按 `a` 输入媒体目录 → 回车（自动入队，并加入 watch）→ 按 `D` 启动守护 → 自动开转。
+界面里从零开始：按 `a` 输入媒体目录 → 回车（设为扫描路径并开始扫描）→ 按 `D` 启动守护 → 自动开转。
+第一次安装没有默认扫描路径；设置一次后会一直用它，直到你再按 `a` 改成别的目录。
 
 ## 安装（不打包）
 
@@ -88,7 +89,7 @@ tctui daemon --start  # 或者界面里按 D
 不用另开终端，也不用先改配置文件。
 
 第一次用建议先复制一份样本到 `testdata/` 里试（NAS 上已经有一套测试片），
-确认无误再把 `config.json` 的 `watch` 指向真实媒体库。
+确认无误再把 `config.json` 的 `scan.path` 指向真实媒体库。
 
 ![界面预览](docs/preview.png)
 
@@ -131,8 +132,8 @@ cd /volume1/docker/ffmpeg-tui && ./tctui daemon --start
 | `q` | 退出界面（守护进程继续跑） |
 | `↑ ↓` / `PgUp PgDn` | 选择任务 |
 | `Space` | 暂停/恢复**派发**（运行中的任务不中断） |
-| `s` | 扫描 watch 目录，新任务入队 |
-| `a` | 输入任意路径扫描（支持中文路径；不在 watch 里的会自动加进去） |
+| `s` | 扫描已设置的路径，新任务入队 |
+| `a` | 设置扫描路径（替换旧的）并立即扫描，支持中文路径 |
 | `D` | 启动 / **关闭**守护进程（关闭时再按一次 D 确认；运行中的 ffmpeg 会继续跑完，重启 daemon 后接管收尾） |
 | `x` | 取消选中任务（SIGTERM worker，自动还原源文件） |
 | `C` | 清空**排队**任务（按两次确认；运行中的不受影响，见下） |
@@ -174,7 +175,7 @@ cd /volume1/docker/ffmpeg-tui && ./tctui daemon --start
 ```
 
 `--mark-skipped` 会把清掉的文件写进 `processed` 表，之后扫描直接忽略；
-如果哪天想重跑，用 `./tctui retry <id>`（还在列表里的话）或把它们移出 watch 目录再放回。
+如果哪天想重跑，用 `./tctui retry <id>`（还在列表里的话）或把它们移出扫描路径再放回。
 
 底部会把**所有快捷键**列出来：宽屏一行，窄屏自动折成两行（最多三行），不会只显示一半。
 `?` 打开完整帮助（带分组和说明，内容多时用 ↑↓/PgUp PgDn/滚轮 滚动，`Esc` 关闭）。
@@ -224,7 +225,7 @@ cd /volume1/docker/ffmpeg-tui && ./tctui daemon --start
 
 ```json
 {
-  "watch": ["/volume1/docker/ffmpeg-tui/testdata"],
+  "scan": {"path": "/volume2/video"},
   "scan": {
     "exts": ["mp4", "mkv", "avi", "mov", "flv", "wmv", "m4v", "ts", "m2ts", "rmvb", "webm"],
     "min_size_mb": 20,

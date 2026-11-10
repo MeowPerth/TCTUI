@@ -25,10 +25,10 @@ DEFAULTS = {
         "ffprobe": os.path.join(DEFAULT_FFMPEG_DIR, "ffprobe"),
         "nvidia_smi": "nvidia-smi",
     },
-    # directories that get scanned when the user presses "scan" / on startup
-    "watch": ["/volume1/docker/ffmpeg-tui/testdata"],
     # ------------------------------------------------------------- scanning
     "scan": {
+        # the one directory that "scan" (and startup scan) uses; empty = not set yet
+        "path": "",
         "exts": ["mp4", "mkv", "avi", "mov", "flv", "wmv", "m4v", "ts", "m2ts", "rmvb", "webm", "mpg", "mpeg"],
         "exclude_dirs": ["@eaDir", "#recycle", "@tmp", ".tctui", "lost+found", "@Recycle"],
         "min_size_mb": 20,          # ignore tiny files
@@ -153,10 +153,20 @@ class Config:
         util.ensure_dir(self.runtime_dir)
 
     def _normalize(self):
-        """Old configs had 0 = "use probed value"; probing is gone, so 0 means 4."""
+        """Migrate old config shapes in place."""
+        # old configs had 0 = "use probed value"; probing is gone, so 0 means 4
         gpu_cfg = self.data.get("gpu") or {}
         if not int(gpu_cfg.get("max_parallel_per_gpu") or 0):
             gpu_cfg["max_parallel_per_gpu"] = 4
+        # 0.1.0 had a `watch` list; now there is one persistent scan path
+        scan_cfg = self.data.setdefault("scan", {})
+        if not scan_cfg.get("path"):
+            old = self.data.get("watch") or []
+            if isinstance(old, str):
+                old = [old]
+            if old:
+                scan_cfg["path"] = os.path.abspath(os.path.expanduser(str(old[-1])))
+        self.data.pop("watch", None)
 
     @property
     def py_path(self):
@@ -247,7 +257,7 @@ class Config:
 
 def write_example(path):
     cfg = copy.deepcopy(DEFAULTS)
-    cfg["watch"] = ["/volume1/docker/ffmpeg-tui/testdata"]
+    cfg["scan"]["path"] = "/media/videos"
     import json
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(cfg, fh, ensure_ascii=False, indent=2)

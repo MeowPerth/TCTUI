@@ -289,8 +289,8 @@ HELP_ENTRIES = [
     ("任务", "r", "重试选中任务（失败/取消/中断/保留）"),
     ("任务", "d", "显示/隐藏详情面板"),
     ("任务", "l", "详情面板切换为任务日志"),
-    ("队列", "s", "扫描 watch 目录"),
-    ("队列", "a", "输入任意路径只扫描一次（不改 watch）"),
+    ("队列", "s", "扫描已设置的路径"),
+    ("队列", "a", "设置扫描路径（替换）并立即扫描"),
     ("队列", "C", "清空排队任务（连按两次确认）"),
     ("队列", "T", "清零累计统计（连按两次确认）"),
     ("队列", "Space", "暂停/恢复派发（不打断运行中的任务）"),
@@ -300,7 +300,7 @@ HELP_ENTRIES = [
     ("设置", "点击值 / 右键", "直接修改 / 反向调整"),
     ("设置", "1-9", "启用/停用对应编号的显卡"),
     ("设置", "FFmpeg / FFprobe 路径", "点数值修改；回车保存并自动校验能否运行"),
-    ("设置", "扫描目录 watch", "点数值修改；多个目录用逗号分隔"),
+    ("设置", "扫描路径", "点数值修改；设置后一直用它，直到再次修改"),
     ("设置", "扫描格式面板", "↑↓←→ 移动，空格勾选，Esc 返回；底部有 全选/仅常用/反选"),
     ("设置", "Esc / m / q", "关闭面板"),
     ("系统", "?", "打开/关闭本帮助"),
@@ -325,7 +325,7 @@ COMMON_EXTS = ["mp4", "mkv", "avi", "mov", "m4v", "ts", "wmv", "flv", "webm", "m
 SETTINGS_DEFS = [
     {"key": "paths.ffmpeg", "kind": "text", "label": "FFmpeg 路径"},
     {"key": "paths.ffprobe", "kind": "text", "label": "FFprobe 路径"},
-    {"key": "watch", "kind": "text", "label": "扫描目录 watch"},
+    {"key": "scan.path", "kind": "text", "label": "扫描路径"},
     {"key": "encode.video_codec", "kind": "enum", "label": "视频编码", "values": []},
     {"key": "encode.cq", "kind": "int", "label": "CQ 画质/体积",
      "values": list(range(18, 41))},
@@ -871,9 +871,9 @@ class App:
         return y
 
     def _pretty_path(self, path):
-        for root in (self.cfg.get("watch") or []):
-            if path.startswith(root.rstrip("/") + "/"):
-                return util.rel_to(path, root)
+        root = self.cfg.get("scan.path") or ""
+        if root and path.startswith(root.rstrip("/") + "/"):
+            return util.rel_to(path, root)
         return path
 
     def draw_detail(self, scr, y, w, height):
@@ -1008,8 +1008,8 @@ class App:
             scr.put(last, 1, util.truncate_disp(msg, w - 2), S["err"])
             return
         if self.input_mode:
-            if self.input_kind == "watch":
-                prompt = "扫描目录 watch（逗号分隔，回车保存，Esc 取消）: %s█" % self.input_buf
+            if self.input_kind == "scanpath":
+                prompt = "扫描路径（回车保存，Esc 取消）: %s█" % self.input_buf
             elif self.input_kind in ("ffmpeg", "ffprobe"):
                 prompt = "%s 路径（回车保存，Esc 取消，Ctrl+U 清空）: %s█" % (
                     "FFmpeg" if self.input_kind == "ffmpeg" else "FFprobe", self.input_buf)
@@ -1134,7 +1134,7 @@ class App:
             name = (g.get("name") or "").replace("NVIDIA ", "").replace("GeForce ", "")
             rows.append({"kind": "gpu", "gpu": g["index"],
                          "label": "GPU%s %s" % (g["index"], name), "value": not disabled})
-        rows.append({"kind": "action", "action": "scan", "label": "立即扫描 watch 目录", "value": True})
+        rows.append({"kind": "action", "action": "scan", "label": "立即扫描当前路径", "value": True})
         paused = bool(self.view.hb.get("paused"))
         rows.append({"kind": "action", "action": "pause",
                      "label": "派发状态（现在是%s）" % ("暂停" if paused else "运行"), "value": not paused})
@@ -1340,9 +1340,9 @@ class App:
         kind = row["kind"]
         if kind == "text":
             self.input_mode = True
-            if row["key"] == "watch":
-                self.input_kind = "watch"
-                self.input_buf = ", ".join(str(x) for x in (row["value"] or []))
+            if row["key"] == "scan.path":
+                self.input_kind = "scanpath"
+                self.input_buf = str(row["value"] or "")
             else:
                 self.input_kind = "ffmpeg" if row["key"].endswith("ffmpeg") else "ffprobe"
                 self.input_buf = str(row["value"] or "")
@@ -1357,8 +1357,12 @@ class App:
                 self.command("resume" if paused else "pause")
                 self.notify("已%s派发" % ("恢复" if paused else "暂停"))
             elif act == "scan":
-                self.command("scan", {"roots": self.cfg.get("watch")})
-                self.notify("开始扫描…")
+                path = self.cfg.get("scan.path") or ""
+                if not path:
+                    self.notify("还没有设置扫描路径，按 a 设置")
+                else:
+                    self.command("scan")
+                    self.notify("开始扫描: %s" % path)
             elif act == "clear_queue":
                 if self.confirm and self.confirm.get("action") == "clear_queue":
                     self.confirm = None
@@ -1581,8 +1585,8 @@ class App:
                     self._do_scan_path(buf)
                 elif kind in ("ffmpeg", "ffprobe"):
                     self._save_binary(kind, buf)
-                elif kind == "watch":
-                    self._save_watch(buf)
+                elif kind == "scanpath":
+                    self._save_scan_path(buf)
             elif key == "\x1b":
                 self.input_mode = False
                 self.input_buf = ""
@@ -1606,9 +1610,13 @@ class App:
         elif key in (" ",):
             self.command("resume" if self.view.hb.get("paused") else "pause")
         elif key == "s":
-            self.command("scan", {"roots": self.cfg.get("watch")})
+            path = self.cfg.get("scan.path") or ""
+            if not path:
+                self.notify("还没有设置扫描路径，按 a 设置")
+                return
+            self.command("scan")
             if self.view.daemon_alive:
-                self.notify("开始扫描…")
+                self.notify("开始扫描: %s" % path)
             else:
                 self.notify("扫描已排队；守护进程未运行，按 D 启动后自动执行")
         elif key in ("a", "A"):
@@ -1757,28 +1765,22 @@ class App:
         self.notify("已清空 %d 个排队任务（运行中的继续）" % n)
         self.reload()
 
-    def _save_watch(self, raw):
-        parts = [p.strip() for p in (raw or "").replace("，", ",").split(",")]
-        dirs = []
-        for part in parts:
-            if not part:
-                continue
-            path = os.path.abspath(os.path.expanduser(part))
-            if not os.path.isdir(path):
-                self.notify("目录不存在: %s" % path)
-                return
-            if path not in dirs:
-                dirs.append(path)
-        if not dirs:
-            self.notify("至少保留一个扫描目录")
+    def _save_scan_path(self, raw):
+        raw = (raw or "").strip()
+        if not raw:
+            self.notify("扫描路径不能为空")
+            return
+        path = os.path.abspath(os.path.expanduser(raw))
+        if not os.path.isdir(path):
+            self.notify("目录不存在: %s" % path)
             return
         if self.demo:
             self.notify("demo 模式不保存")
             return
-        self.cfg.set("watch", dirs)
+        self.cfg.set("scan.path", path)
         if not self._save_cfg():
             return
-        self.notify("扫描目录已更新: %s" % ", ".join(dirs))
+        self.notify("扫描路径已保存: %s（按 s 扫描）" % path)
         self.reload()
 
     def _save_binary(self, kind, raw):
@@ -1829,23 +1831,27 @@ class App:
             return
         raw = (raw or "").strip()
         if not raw:
-            roots = self.cfg.get("watch") or []
-            if not roots:
-                self.notify("没有 watch 目录，请输入一个路径")
+            path = self.cfg.get("scan.path") or ""
+            if not path:
+                self.notify("还没有设置扫描路径，按 a 输入一个目录")
                 return
-            self.command("scan", {"roots": roots})
-            self.notify("开始扫描 watch: %s" % ", ".join(roots))
-            return
-        path = os.path.abspath(os.path.expanduser(raw))
-        if not os.path.isdir(path):
-            self.notify("目录不存在: %s" % path)
-            return
-        # one-off scan: do not touch watch (edit it in settings if you want it permanent)
-        self.command("scan", {"roots": [path]})
-        if not self.view.daemon_alive and not self.demo:
-            self.notify("扫描已排队；守护进程未运行，按 D 启动后自动执行")
         else:
-            self.notify("开始扫描（只此一次，不改 watch）: %s" % path)
+            path = os.path.abspath(os.path.expanduser(raw))
+            if not os.path.isdir(path):
+                self.notify("目录不存在: %s" % path)
+                return
+            # one persistent path: setting it again replaces the old one
+            self.cfg.set("scan.path", path)
+            try:
+                self.cfg.save()
+            except OSError as exc:
+                self.notify("保存失败: %r" % exc)
+                return
+        self.command("scan")
+        if not self.view.daemon_alive and not self.demo:
+            self.notify("扫描路径已设为 %s；扫描已排队，按 D 启动后执行" % path)
+        else:
+            self.notify("扫描路径已设为 %s，开始扫描" % path)
 
     def _start_daemon(self):
         if self.demo:

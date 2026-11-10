@@ -2,14 +2,12 @@
   "version": 1,
   "state_dir": "",
   "paths": {
-    "ffmpeg": "/usr/bin/ffmpeg",
-    "ffprobe": "/usr/bin/ffprobe",
+    "ffmpeg": "/volume1/Software/其他软件/视频编辑工具/FFmpeg/ffmpeg-n7.1.3-40-gcddd06f3b9-linux64-gpl-7.1/bin/ffmpeg",
+    "ffprobe": "/volume1/Software/其他软件/视频编辑工具/FFmpeg/ffmpeg-n7.1.3-40-gcddd06f3b9-linux64-gpl-7.1/bin/ffprobe",
     "nvidia_smi": "nvidia-smi"
   },
-  "watch": [
-    "/media/videos"
-  ],
   "scan": {
+    "path": "/media/videos",
     "exts": [
       "mp4",
       "mkv",
