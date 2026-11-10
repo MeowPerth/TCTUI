@@ -1597,7 +1597,7 @@ class App:
             if self.view.daemon_alive:
                 self.notify("开始扫描…")
             else:
-                self.notify("已开始扫描；守护进程未运行，按 D 启动后才会转码")
+                self.notify("扫描已排队；守护进程未运行，按 D 启动后自动执行")
         elif key in ("a", "A"):
             self.input_mode = True
             self.input_kind = "path"
@@ -1817,7 +1817,7 @@ class App:
             self.notify("开始扫描: %s" % path)
         self.command("scan", {"roots": [path]})
         if not self.view.daemon_alive and not self.demo:
-            self.notify("已加入扫描队列；守护进程未运行，按 D 启动后才会转码")
+            self.notify("扫描已排队；守护进程未运行，按 D 启动后自动执行")
 
     def _start_daemon(self):
         if self.demo:

@@ -348,8 +348,13 @@ class DB:
 
     # ------------------------------------------------------------- commands
     def push_command(self, cmd, args=None):
+        payload = json.dumps(args or {}, ensure_ascii=False)
+        if cmd == "scan":
+            # pressing `s` on a stopped daemon used to pile up identical scans
+            self.execute("UPDATE commands SET done=1, result='superseded' "
+                         "WHERE done=0 AND cmd='scan' AND args=?", (payload,))
         return self.execute("INSERT INTO commands(ts,cmd,args,done) VALUES(?,?,?,0)",
-                            (util.now(), cmd, json.dumps(args or {}, ensure_ascii=False))).lastrowid
+                            (util.now(), cmd, payload)).lastrowid
 
     def pending_commands(self):
         return [dict(r) for r in self.query("SELECT * FROM commands WHERE done=0 ORDER BY id ASC LIMIT 50")]

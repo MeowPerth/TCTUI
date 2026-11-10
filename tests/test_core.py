@@ -601,6 +601,22 @@ class TestWorkerArgs(unittest.TestCase):
         self.assertNotIn("-filter_complex", args)
 
 
+class TestCommandDedupe(unittest.TestCase):
+    def test_duplicate_scan_is_superseded(self):
+        tmp = tempfile.mkdtemp()
+        db = DB(os.path.join(tmp, "s.db")).init()
+        try:
+            a = db.push_command("scan", {"roots": ["/a"]})
+            b = db.push_command("scan", {"roots": ["/a"]})
+            self.assertNotEqual(a, b)
+            self.assertEqual(len(db.pending_commands()), 1)
+            self.assertEqual(db.pending_commands()[0]["id"], b)
+            db.push_command("scan", {"roots": ["/b"]})
+            self.assertEqual(len(db.pending_commands()), 2)
+        finally:
+            db.close()
+
+
 class TestClearStats(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
