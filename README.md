@@ -40,7 +40,15 @@ cd /path/to/tctui
 
 ## 安装（不打包）
 
-程序是纯 Python 标准库，**不需要打包或编译**。把目录拷到目标机（任何位置都行），执行一次：
+程序是纯 Python 标准库，**不需要打包或编译**。可以从
+[Releases](https://github.com/MeowPerth/TCTUI/releases/latest) 下载源码包，或直接用 git clone：
+
+```bash
+tar xzf tctui-0.1.0.tar.gz && cd tctui-0.1.0
+# 或者 git clone https://github.com/MeowPerth/TCTUI.git && cd TCTUI
+```
+
+然后在解压/克隆出来的目录里执行一次：
 
 ```bash
 sudo ./install.sh
@@ -315,3 +323,7 @@ python3 -m unittest discover -s tests        # 21 个单元测试，无需显卡
 ./tctui ui --demo --dump --size 120x42       # 无终端预览界面
 ./tctui ui --demo                            # 用假数据看真实界面
 ```
+
+## License
+
+MIT，见 [LICENSE](LICENSE)。
