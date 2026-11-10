@@ -690,7 +690,6 @@ class TestUiInput(unittest.TestCase):
         self.assertFalse(self.app.input_mode)
         self.assertEqual(self.sent[-1][0], "scan")
         self.assertEqual(self.sent[-1][1]["roots"], [d])
-        self.assertIn(d, self.cfg.get("watch"))
 
     def test_path_scan_relative_and_covered(self):
         d = os.path.join(self.tmp, "lib")
@@ -714,6 +713,30 @@ class TestUiInput(unittest.TestCase):
         self.app.action("a")
         self.app.action("\n")
         self.assertEqual(self.sent[-1][1]["roots"], [self.tmp])
+
+    def test_path_scan_is_one_off(self):
+        d = os.path.join(self.tmp, "其他")
+        os.makedirs(d)
+        before = list(self.cfg.get("watch"))
+        self.app.action("a")
+        self._type(d)
+        self.app.action("\n")
+        self.assertEqual(list(self.cfg.get("watch")), before)   # watch untouched
+        self.assertEqual(self.sent[-1][0], "scan")
+        self.assertEqual(self.sent[-1][1]["roots"], [d])
+
+    def test_watch_editor_saves_list(self):
+        a = os.path.join(self.tmp, "a")
+        b = os.path.join(self.tmp, "b")
+        os.makedirs(a); os.makedirs(b)
+        self.app._open_settings()
+        rows = self.app._settings_rows()
+        row = [r for r in rows if r.get("key") == "watch"][0]
+        self.app._change_setting(row, 1)
+        self.assertEqual(self.app.input_kind, "watch")
+        self.app.input_buf = "%s, %s" % (a, b)
+        self.app.action("\n")
+        self.assertEqual(self.cfg.get("watch"), [a, b])
 
     def test_D_toggles_daemon(self):
         started = []
