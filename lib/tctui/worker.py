@@ -132,7 +132,10 @@ class Worker:
         need_scale = bool(max_width and width and width > max_width)
 
         if use_hwdec:
-            args += ["-hwaccel", "cuda", "-hwaccel_device", str(gpu),
+            # NVDEC has a 32-surface limit; ffmpeg's default 16 decoder threads
+            # can ask for more (e.g. 34 on a 464x848 H.264 file) and fail with
+            # CUDA_ERROR_INVALID_VALUE. Four threads stay well under the limit.
+            args += ["-threads", "4", "-hwaccel", "cuda", "-hwaccel_device", str(gpu),
                      "-hwaccel_output_format", "cuda"]
         args += ["-i", src]
 
@@ -415,14 +418,23 @@ class Worker:
                                          attempts_list=attempts)
             tail = self._stderr_tail()
             if any(h in tail for h in FFMPEG_ERROR_HINTS):
+                if self._hwdec_setup_failed(tail) and idx + 1 < len(plan):
+                    self.log("hardware decoder init failed; retrying with software decode")
+                    continue
                 gpu_error = True
-                self.log("gpu error detected: %s" % tail.splitlines()[-1] if tail else "gpu error")
+                self.log("gpu error detected: %s" % (tail.splitlines()[-1] if tail else "gpu error"))
                 # GPU problems will not be fixed by decoding in software
                 break
             self.log("attempt %d failed rc=%s" % (idx + 1, rc))
         self.phase = "failed"
         return self.write_result(False, exit_code=final_rc, error=self._stderr_tail()[-600:] or "ffmpeg 失败",
                                  gpu_error=gpu_error, attempts_list=attempts)
+
+    @staticmethod
+    def _hwdec_setup_failed(tail):
+        return ("hwaccel initialisation returned error" in tail
+                or "Failed setup for format cuda" in tail
+                or "cuvidCreateDecoder" in tail)
 
     def _stderr_tail(self):
         lines = util.tail_lines(self.log_path, 40)

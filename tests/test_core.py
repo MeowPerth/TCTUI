@@ -712,6 +712,7 @@ class TestWorkerArgs(unittest.TestCase):
         w = self._worker()
         args, hw = w.build_transcode_args("/x/in.mp4", "gpu", 1)
         self.assertTrue(hw)
+        self.assertEqual(args[args.index("-threads") + 1], "4")
         self.assertIn("-noautoscale", args)
         fc = args[args.index("-filter_complex") + 1]
         self.assertIn("[0:V:0]scale_cuda=iw:-2", fc)
@@ -723,6 +724,14 @@ class TestWorkerArgs(unittest.TestCase):
         args, hw = w.build_transcode_args("/x/in.mp4", "gpu", 1)
         fc = args[args.index("-filter_complex") + 1]
         self.assertIn("format=p010le", fc)
+
+    def test_hwdec_setup_failure_is_recognized(self):
+        from tctui.worker import Worker
+        self.assertTrue(Worker._hwdec_setup_failed(
+            "Failed setup for format cuda: hwaccel initialisation returned error."))
+        self.assertTrue(Worker._hwdec_setup_failed(
+            "cuvidCreateDecoder(&decoder->decoder, params) failed"))
+        self.assertFalse(Worker._hwdec_setup_failed("OpenEncodeSessionEx failed"))
 
     def test_sw_fallback_has_no_cuda_filters(self):
         w = self._worker()
