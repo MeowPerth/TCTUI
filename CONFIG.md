@@ -170,7 +170,6 @@ cd /volume1/docker/ffmpeg-tui
 | `ui.host` | 空=主机名 | 标题栏显示的名字 |
 | `ui.mouse` | `true` | 鼠标支持；想用终端原生选择/复制文字时设 false（重启界面生效） |
 | `ui.refresh_seconds` | `1.0` | 界面刷新 |
-| `ui.sparkline_points` | `40` | 显卡走势图点数 |
 | `ui.log_tail_lines` | `8` | 详情页日志行数 |
 
 ---

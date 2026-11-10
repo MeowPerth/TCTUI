@@ -104,7 +104,6 @@ DEFAULTS = {
         "host": "",
         "mouse": True,
         "refresh_seconds": 1.0,
-        "sparkline_points": 40,
         "log_tail_lines": 8,
         "theme": "nvtop",
     },

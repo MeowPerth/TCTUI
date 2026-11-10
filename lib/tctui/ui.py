@@ -397,7 +397,6 @@ class App:
         self.last_refresh = 0.0
         self.log_scroll = 0
         self.refresh_seconds = float(cfg.get("ui.refresh_seconds") or 1.0)
-        self.spark_n = int(cfg.get("ui.sparkline_points") or 40)
         self._db = None
 
     # -------------------------------------------------------------- data
@@ -431,7 +430,6 @@ class App:
             return
         db = self.db()
         v.gpus = self.monitor.get()
-        v.hist = {}
         v.hb = util.read_json(self.cfg.heartbeat_path(), {}) or {}
         v.daemon_alive = bool(v.hb.get("pid") and util.pid_alive(v.hb.get("pid")))
         if not db:
@@ -452,8 +450,6 @@ class App:
         v.queued_media = db.queue_media_seconds()
         v.fleet = db.fleet_history(600, 120)
         v.running_fps = db.running_fps()[0]
-        for g in v.gpus:
-            v.hist[g["index"]] = db.gpu_history(g["index"], 300, self.spark_n)
         if self.sel_id is not None:
             for i, j in enumerate(self.visible_jobs()):
                 if j["id"] == self.sel_id:
@@ -535,11 +531,6 @@ class App:
                        "error": "转码失败: FFmpeg退出码 1", "finished": now - 120, "gpu": 1})
         v.hb = {"pid": 4242, "ts": now, "paused": False, "busy": ""}
         v.daemon_alive = True
-        for g in v.gpus:
-            base = g["util"]
-            v.hist[g["index"]] = [{"util": util.clamp(base + (i * 7 % 23) - 11, 0, 100),
-                                   "enc": 1 + (i * 5 + g["index"]) % max(1, g["enc_sessions"] + 1)}
-                                  for i in range(self.spark_n)]
         v.fleet = [{"fps": 180 + (i * 13 % 40) - 20, "running": 8, "queued": 20} for i in range(60)]
         v.events = [{"ts": now - i * 40, "level": "info", "msg": m} for i, m in enumerate([
             "启动 #1207 GPU0 刺客信条.mp4 (3.2 GiB)",
@@ -721,11 +712,10 @@ class App:
         v = self.view
         narrow = w < 92
         compact = w < 84            # too tight for bars: text only
-        spark_w = 12 if w >= 118 else 0
         chip = not narrow
         mem_bar_w = 8 if narrow else 10
         util_bar_w = 8 if narrow else 10
-        right = w - 2 - spark_w
+        right = w - 2
         pw_x = right - 8
         temp_x = pw_x - 6
         util_x = temp_x - (4 + 1 + util_bar_w + 2)
@@ -750,8 +740,6 @@ class App:
         scr.put(y, temp_x, "温度", S["head"])
         if not narrow:
             scr.put(y, pw_x, "功耗", S["head"])
-        if spark_w:
-            scr.put(y, right + 2, util.pad_disp("会话走势", spark_w), S["head"])
         y += 1
         if not v.gpus:
             scr.put(y, 2, "未检测到 NVIDIA 显卡 (nvidia-smi 不可用) — 启用 CPU 回退时用 libx265 串行处理",
@@ -800,13 +788,6 @@ class App:
                 pl = g.get("power_limit")
                 if pw is not None and pl:
                     scr.put(y, pw_x, "%3.0f/%3.0fW" % (pw, pl), S["dim"])
-            if spark_w:
-                # sparkline = *our* encode sessions (miner traffic would flatten a
-                # GPU-util graph to 100% and tell us nothing)
-                vals = [float(p.get("enc") or 0) for p in (v.hist.get(idx) or [])]
-                busy = any(v > 0 for v in vals)
-                spark = self._spark(vals, spark_w, floor=1.0)
-                scr.put(y, right + 2, spark, S["accent"] if busy else S["dim"])
             self.hits["gpu"][y] = idx
             y += 1
         return y
