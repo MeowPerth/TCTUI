@@ -41,6 +41,9 @@ STYLES = [
     ("blue", "blue", "default", True),
     ("bar_warn", "yellow", "default", False),
     ("bar_err", "red", "default", False),
+    ("scan", "black", "blue", True),
+    ("okbg", "black", "green", True),
+    ("errbg", "white", "red", True),
 ]
 S = {name: i for i, (name, _f, _b, _bold) in enumerate(STYLES)}
 
@@ -289,12 +292,12 @@ HELP_ENTRIES = [
     ("任务", "r", "重试选中任务（失败/取消/中断/保留）"),
     ("任务", "d", "显示/隐藏详情面板"),
     ("任务", "l", "详情面板切换为任务日志"),
-    ("队列", "s", "扫描已设置的路径"),
+    ("队列", "s", "扫描当前路径（扫描时底栏显示“扫描中”）"),
     ("队列", "a", "设置扫描路径（替换）并立即扫描"),
     ("队列", "C", "清空排队任务（连按两次确认）"),
     ("队列", "T", "清零累计统计（连按两次确认）"),
-    ("队列", "Space", "暂停/恢复派发（不打断运行中的任务）"),
-    ("队列", "D", "启动 / 关闭守护进程（关闭时运行中的任务会继续）"),
+    ("队列", "Space", "暂停/恢复派发（暂停时底栏显示“暂停中”）"),
+    ("队列", "D", "启动/关闭守护（底栏显示“守护已启动 / 守护已关闭”）"),
     ("设置", "m / 点标题 ⚙ / 点底栏", "打开设置面板"),
     ("设置", "↑ ↓ / ← → / Enter", "选择、调整、切换"),
     ("设置", "点击值 / 右键", "直接修改 / 反向调整"),
@@ -586,36 +589,71 @@ class App:
         v = self.view
         scr.fill(y, 0, w, " ", S["title"])
         left = " tctui %s " % cfgmod.APP_VERSION
+        left_w = util.disp_width(left)
         scr.put(y, 0, left, S["title"])
-        state = "派发中" if v.daemon_alive else "守护未运行"
-        busy = v.hb.get("busy")
-        if busy == "scanning":
-            state = "扫描中"
-        if v.hb.get("paused"):
-            state = "已暂停派发"
+
+        clock_txt = " %s " % time.strftime("%m-%d %H:%M:%S")
+        cw = util.disp_width(clock_txt)
+        clock_x = max(0, w - cw)
+        scr.put(y, clock_x, clock_txt, S["title"])
+
+        alive = v.daemon_alive
+        paused = bool(v.hb.get("paused"))
+        scanning = v.hb.get("busy") == "scanning"
+        states = []
+        if scanning:
+            states.append("扫描中")
+        if paused:
+            states.append("已暂停")
+        if not states:
+            states.append("派发中" if alive else "守护未运行")
+        status = "%s %s " % ("●" if alive else "○", " · ".join(states))
+        if not alive:
+            sattr = S["errbg"]
+        elif paused:
+            sattr = S["pause"]
+        elif scanning:
+            sattr = S["scan"]
+        else:
+            sattr = S["title"]
+        sw = util.disp_width(status)
+        status_x = max(left_w + 1, clock_x - sw)
+        scr.put(y, status_x, status, sattr)
+
         import socket
         host = self.cfg.get("ui.host") or (socket.gethostname() or "localhost")
-        host = util.truncate_disp("HServer" if self.demo else host, 16)
-        right = " %s  %s %s " % (host, "●" if v.daemon_alive else "○", state)
-        attr = S["title"] if v.daemon_alive else S["err"]
-        if v.hb.get("paused"):
-            attr = S["pause"]
-        clock = time.strftime("%m-%d %H:%M:%S")
-        clock_txt = " %s " % clock
-        cw = util.disp_width(clock_txt)
-        rw = util.disp_width(right)
-        scr.put(y, max(0, w - cw - rw - 1), right, attr)
-        scr.put(y, max(0, w - cw), clock_txt, S["title"])
+        host = util.truncate_disp("HServer" if self.demo else host, 14)
+        host_txt = " %s " % host
+        hw = util.disp_width(host_txt)
+        host_x = status_x - hw
+        if host_x > left_w + 2:
+            scr.put(y, host_x, host_txt, S["title"])
+
         btn = " \u2699 设置 "
         bw = util.disp_width(btn)
-        bx = w - cw - rw - 1 - bw - 1
-        if bx > util.disp_width(left) + 4:
+        bx = (host_x if host_x > left_w + 2 else status_x) - bw - 1
+        if bx > left_w + 2:
             scr.put(y, bx, btn, S["accent"])
             self.hits["title"].append((bx, bx + bw, "settings"))
+
+        # current scan path, immediately left of the settings button
+        path = self.cfg.get("scan.path") or ""
+        avail = bx - left_w - 3
+        path_x = None
+        if avail >= 12:
+            shown = util.truncate_middle(path or "未设置", max(4, avail - 7))
+            seg = "扫描 %s" % shown
+            px = bx - util.disp_width(seg) - 2
+            if px > left_w + 2:
+                path_x = px
+                scr.put(y, px, "扫描 ", S["title"])
+                scr.put(y, px + 5, shown,
+                        S["pause"] if not path else S["title"])
         mid = " 多卡 NVENC 转码调度 "
-        x = util.disp_width(left) + 2
-        if x + util.disp_width(mid) < w - util.disp_width(right) - 10:
-            scr.put(y, x, mid, S["title"])
+        mx = left_w + 2
+        limit = path_x if path_x is not None else bx
+        if mx + util.disp_width(mid) + 2 < limit:
+            scr.put(y, mx, mid, S["title"])
         return y + 1
 
     def draw_summary(self, scr, y, w):
@@ -938,13 +976,21 @@ class App:
         return y
 
     def _footer_items(self):
-        items = [("q", "退出", "q"), ("?", "帮助", "?"), ("Space", "暂停", " "),
-                 ("a", "路径", "a"), ("s", "扫描", "s"), ("C", "清队", "C"),
-                 ("T", "清零", "T"),
-                 ("D", "关闭" if self.view.daemon_alive else "启动", "D"),
-                 ("m", "设置", "settings"), ("x", "取消", "x"),
-                 ("r", "重试", "r"), ("d", "详情", "d"), ("l", "日志", "l"),
-                 ("1-9", "显卡", "settings")]
+        v = self.view
+        paused = bool(v.hb.get("paused"))
+        scanning = v.hb.get("busy") == "scanning"
+        items = [("q", "退出", "q", None), ("?", "帮助", "?", None),
+                 ("Space", "暂停中" if paused else "暂停", " ",
+                  "pause" if paused else None),
+                 ("a", "路径", "a", None),
+                 ("s", "扫描中" if scanning else "扫描", "s",
+                  "scan" if scanning else None),
+                 ("C", "清队", "C", None), ("T", "清零", "T", None),
+                 ("D", "守护已启动" if v.daemon_alive else "守护已关闭", "D",
+                  "okbg" if v.daemon_alive else "errbg"),
+                 ("m", "设置", "settings", None), ("x", "取消", "x", None),
+                 ("r", "重试", "r", None), ("d", "详情", "d", None),
+                 ("l", "日志", "l", None), ("1-9", "显卡", "settings", None)]
         return items
 
     def _footer_layout(self, w):
@@ -989,7 +1035,7 @@ class App:
             row = []
             x = 1
             for it in group:
-                row.append((x, it[0], it[1], it[2]))
+                row.append((x, it[0], it[1], it[2], it[3]))
                 x += need(it) + 1
             rows.append(row)
         return rows
@@ -1022,10 +1068,17 @@ class App:
             return
         for r, row in enumerate(rows):
             y = y0 + r
-            for (x, key, label, act) in row:
-                scr.put(y, x, key, S["accent"])
-                scr.put(y, x + util.disp_width(key) + 1, label, S["dim"])
-                self.hits["footer"].append((y, x, x + util.disp_width(key) + 1 + util.disp_width(label), act))
+            for (x, key, label, act, flag) in row:
+                kw = util.disp_width(key)
+                lw = util.disp_width(label)
+                if flag:
+                    scr.fill(y, x, kw + 1 + lw, " ", S[flag])
+                    scr.put(y, x, key, S[flag])
+                    scr.put(y, x + kw + 1, label, S[flag])
+                else:
+                    scr.put(y, x, key, S["accent"])
+                    scr.put(y, x + kw + 1, label, S["dim"])
+                self.hits["footer"].append((y, x, x + kw + 1 + lw, act))
         scr.put(last, max(0, w - 2), " ", S["norm"])
 
     def _help_rows(self):

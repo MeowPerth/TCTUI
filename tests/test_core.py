@@ -470,6 +470,32 @@ class TestBinaryPathSetting(unittest.TestCase):
         self.assertEqual(self.app.input_buf, "")
 
 
+class TestStatusBadges(unittest.TestCase):
+    def test_title_and_footer_show_states(self):
+        tmp = tempfile.mkdtemp()
+        cfg = cfgmod.Config(home=tmp, overrides={"scan": {"path": "/volume4/NSFW/Other"}})
+        from tctui import ui
+        app = ui.App(cfg, demo=True)
+        app.reload()
+        app.view.daemon_alive = True
+        app.view.hb = {"paused": True, "busy": "scanning"}
+        scr = ui.Screen(120, 24)
+        app.draw(scr)
+        text = ui.DumpBackend(120, 24, color=False).draw(scr)
+        self.assertIn("/volume4/NSFW/Other", text)      # scan path in title
+        self.assertIn("扫描中", text)
+        self.assertIn("已暂停", text)
+        self.assertIn("暂停中", text)                    # Space badge
+        self.assertIn("守护已启动", text)                 # D badge
+        app.view.daemon_alive = False
+        app.view.hb = {}
+        scr = ui.Screen(120, 24)
+        app.draw(scr)
+        text = ui.DumpBackend(120, 24, color=False).draw(scr)
+        self.assertIn("守护未运行", text)
+        self.assertIn("守护已关闭", text)
+
+
 class TestGpuPanel(unittest.TestCase):
     def test_no_other_vram_column_and_no_dots(self):
         tmp = tempfile.mkdtemp()
@@ -502,7 +528,7 @@ class TestFooterHelp(unittest.TestCase):
 
     def _actions(self, w=120):
         rows = self.app._footer_layout(w)
-        return [a for row in rows for (_x, _k, _l, a) in row], rows
+        return [a for row in rows for (_x, _k, _l, a, _f) in row], rows
 
     def test_footer_lists_every_shortcut(self):
         actions, rows = self._actions(120)
