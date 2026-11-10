@@ -16,6 +16,7 @@ from . import util
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  seq INTEGER,
   batch TEXT,
   src TEXT NOT NULL,
   src_size INTEGER DEFAULT 0,
@@ -124,6 +125,13 @@ class DB:
         if self.readonly:
             return self
         self.conn.executescript(SCHEMA)
+        cols = {row[1] for row in self.conn.execute("PRAGMA table_info(jobs)")}
+        if "seq" not in cols:
+            self.conn.execute("ALTER TABLE jobs ADD COLUMN seq INTEGER")
+        if self.conn.execute("SELECT 1 FROM jobs WHERE seq IS NULL LIMIT 1").fetchone():
+            self.conn.execute(
+                "UPDATE jobs SET seq = (SELECT COUNT(*) FROM jobs j2 WHERE j2.id <= jobs.id) "
+                "WHERE seq IS NULL")
         self.conn.commit()
         return self
 
@@ -165,11 +173,12 @@ class DB:
         meta = job.get("meta") or {}
         if not isinstance(meta, str):
             meta = json.dumps(meta, ensure_ascii=False)
+        seq = self.query_one("SELECT COALESCE(MAX(seq),0)+1 AS n FROM jobs")["n"]
         cur = self.execute(
-            """INSERT INTO jobs(batch, src, src_size, out, out_ext, merge_files, status, created,
+            """INSERT INTO jobs(seq, batch, src, src_size, out, out_ext, merge_files, status, created,
                                 width, height, duration, vcodec, audio_codecs, meta)
-               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (job.get("batch"), job["src"], int(job.get("src_size") or 0), job.get("out"),
+               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (seq, job.get("batch"), job["src"], int(job.get("src_size") or 0), job.get("out"),
              job.get("out_ext"), json.dumps(job.get("merge_files") or [], ensure_ascii=False),
              "queued", now, job.get("width"), job.get("height"), job.get("duration"),
              job.get("vcodec"), json.dumps(job.get("audio_codecs") or []), meta))

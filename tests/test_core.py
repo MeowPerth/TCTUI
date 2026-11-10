@@ -471,6 +471,51 @@ class TestBinaryPathSetting(unittest.TestCase):
         self.assertEqual(self.app.input_buf, "")
 
 
+class TestTaskSequence(unittest.TestCase):
+    def test_seq_is_stable_and_monotonic(self):
+        tmp = tempfile.mkdtemp()
+        db = DB(os.path.join(tmp, "s.db")).init()
+        try:
+            a = db.add_job({"src": "/a.mp4"})
+            b = db.add_job({"src": "/b.mp4"})
+            self.assertEqual(db.get_job(a)["seq"], 1)
+            self.assertEqual(db.get_job(b)["seq"], 2)
+            db.update_job(a, status="done", finished=1)
+            self.assertEqual(db.get_job(a)["seq"], 1)   # follows the task
+            c = db.add_job({"src": "/c.mp4"})
+            self.assertEqual(db.get_job(c)["seq"], 3)
+        finally:
+            db.close()
+
+
+class TestSummaryJump(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.mkdtemp()
+        cfg = cfgmod.Config(home=tmp, overrides={})
+        from tctui import ui
+        self.ui = ui
+        self.app = ui.App(cfg, demo=True)
+        self.app.reload()
+        self.app.draw(ui.Screen(120, 44))
+
+    def _click(self, label):
+        hit = [h for h in self.app.hits["summary"] if h[3] == label][0]
+        self.app.on_mouse(hit[0] + 1, self.app.hits["summary_y"], 1)
+        return self.app.selected()
+
+    def test_queue_chip_jumps_to_first_queued(self):
+        job = self._click("队列")
+        self.assertEqual(job["status"], "queued")
+
+    def test_kept_chip_jumps_to_first_kept(self):
+        job = self._click("保留")
+        self.assertEqual(job["status"], "kept")
+
+    def test_failed_chip_jumps_to_first_failed(self):
+        job = self._click("失败")
+        self.assertIn(job["status"], ("failed", "interrupted"))
+
+
 class TestSelectionFollow(unittest.TestCase):
     def _app(self):
         tmp = tempfile.mkdtemp()

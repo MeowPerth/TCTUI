@@ -469,6 +469,16 @@ class App:
     def visible_jobs(self):
         return self.view.jobs
 
+    def _jump_to_status(self, kinds, label):
+        for i, job in enumerate(self.visible_jobs()):
+            if job.get("status") in kinds:
+                self.sel_idx = i
+                self.sel_id = job["id"]
+                self.focus = "jobs"
+                return True
+        self.notify("没有“%s”的任务" % label)
+        return False
+
     def _update_selection(self, old_status):
         """Keep the cursor on the same task; if it just finished, stay on the row."""
         jobs = self.visible_jobs()
@@ -581,7 +591,7 @@ class App:
         v = self.view
         self.hits = {"jobs": {}, "gpu": {}, "footer": [], "title": [],
                      "settings": [], "job_area": (0, 0),
-                     "exts": [], "exts_btns": []}
+                     "exts": [], "exts_btns": [], "summary": [], "summary_y": -1}
         y = 0
         y = self.draw_title(scr, y, w)
         y = self.draw_summary(scr, y, w)
@@ -705,20 +715,25 @@ class App:
         c = v.counts
         scr.fill(y, 0, w, " ", S["norm"])
         x = 0
+        self.hits["summary"] = []
+        self.hits["summary_y"] = y
         chips = [
-            ("队列", c.get("queued", 0), S["warn"]),
-            ("运行", c.get("running", 0), S["ok"]),
-            ("完成", c.get("done", 0), S["dim"]),
-            ("保留", c.get("kept", 0), S["warn"]),
-            ("失败", c.get("failed", 0) + c.get("interrupted", 0), S["err"]),
+            ("队列", c.get("queued", 0), S["warn"], ("queued",)),
+            ("运行", c.get("running", 0), S["ok"], ("running", "verifying")),
+            ("完成", c.get("done", 0), S["dim"], ("done",)),
+            ("保留", c.get("kept", 0), S["warn"], ("kept",)),
+            ("失败", c.get("failed", 0) + c.get("interrupted", 0), S["err"],
+             ("failed", "interrupted")),
         ]
-        for label, val, attr in chips:
+        for label, val, attr, kinds in chips:
+            start = x
             if label == "完成":
                 scr.put(y, x, " 累计 ", S["dim"])
                 x += util.disp_width(" 累计 ")
             txt = " %s %s " % (label, val)
             scr.put(y, x, txt, attr)
             x += util.disp_width(txt)
+            self.hits["summary"].append((start, x, kinds, label))
         fps = getattr(v, "running_fps", 0) or sum(
             float(j.get("fps") or 0) for j in v.jobs if j.get("status") == "running")
         running_n = c.get("running", 0)
@@ -902,7 +917,8 @@ class App:
             is_sel = (i == sel)
             base = S["sel"] if is_sel else S["norm"]
             scr.fill(y, 0, w, " ", base)
-            scr.put(y, c_id, "%4d" % (i + 1), S["sel"] if is_sel else S["dim"])
+            scr.put(y, c_id, "%4d" % (j.get("seq") or (i + 1)),
+                    S["sel"] if is_sel else S["dim"])
             scr.put(y, c_st, util.pad_disp(self._job_stage(j), 6), S["sel"] if is_sel else STATUS_STYLE.get(st, S["norm"]))
             src = j.get("src") or ""
             name = self._pretty_path(src)
@@ -1634,6 +1650,11 @@ class App:
             self.sel_id = None
             self._clamp()
             return
+        if y == self.hits.get("summary_y"):
+            for (sx1, sx2, kinds, label) in self.hits.get("summary", []):
+                if sx1 <= x < sx2:
+                    self._jump_to_status(kinds, label)
+                    return
         for (hy, bx1, bx2, action) in self.hits.get("footer", []):
             if hy == y and bx1 <= x < bx2:
                 if action == "settings":
