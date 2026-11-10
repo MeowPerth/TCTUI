@@ -27,15 +27,15 @@ from .db import DB
 
 STYLES = [
     ("norm", "default", "default", False),
-    ("title", "black", "cyan", True),
-    ("head", "cyan", "default", True),
-    ("dim", "brightblack", "default", False),
+    ("title", "white", "blue", True),
+    ("head", "white", "default", True),
+    ("dim", "white", "default", False),
     ("ok", "green", "default", False),
     ("warn", "yellow", "default", False),
     ("err", "red", "default", True),
     ("sel", "white", "blue", True),
-    ("accent", "magenta", "default", False),
-    ("gpu", "yellow", "default", True),
+    ("accent", "white", "default", True),
+    ("gpu", "white", "default", True),
     ("pause", "black", "yellow", True),
     ("progress", "green", "default", False),
     ("bar_bg", "brightblack", "default", False),
@@ -46,6 +46,8 @@ STYLES = [
     ("scan", "black", "blue", True),
     ("okbg", "black", "green", True),
     ("errbg", "white", "red", True),
+    ("line", "blue", "default", False),
+    ("magenta", "magenta", "default", False),
 ]
 S = {name: i for i, (name, _f, _b, _bold) in enumerate(STYLES)}
 
@@ -138,7 +140,7 @@ class Screen:
         for i in range(max(0, min(w, self.w - x))):
             self.cells[y][x + i] = (ch, attr)
 
-    def hline(self, y, x, w, ch="─", attr=S["dim"], left="", right="", title=""):
+    def hline(self, y, x, w, ch="─", attr=S["line"], left="", right="", title=""):
         self.fill(y, x, w, ch, attr)
         if left:
             self.put(y, x, left, attr)
@@ -710,7 +712,7 @@ class App:
         # fleet sparkline on the right
         spark = self._spark([float(p.get("fps") or 0) for p in v.fleet], 18)
         if spark and w > util.disp_width(info) + x + 30:
-            scr.put(y, w - util.disp_width(spark) - 2, spark, S["accent"])
+            scr.put(y, w - util.disp_width(spark) - 2, spark, S["magenta"])
         return y + 1
 
     def _spark(self, vals, width, floor=0.0):
@@ -803,7 +805,7 @@ class App:
             used = g["mem_used_mb"] or 0
             total = g["mem_total_mb"] or 1
             scr.put(y, mem_x, "%3.1f/%4.1fG" % (used / 1024.0, total / 1024.0), S["white"])
-            scr.bar(y, mem_x + 11, mem_bar_w, used / total, S["accent"], S["bar_bg"], "█", "░")
+            scr.bar(y, mem_x + 11, mem_bar_w, used / total, S["magenta"], S["bar_bg"], "█", "░")
             u = g.get("util") or 0
             scr.put(y, util_x, "%3d%%" % u, self._gpu_attr(u))
             scr.bar(y, util_x + 5, util_bar_w, u / 100.0, self._gpu_attr(u), S["bar_bg"], "█", "░")
@@ -841,7 +843,7 @@ class App:
         c_speed = c_pct + 5
         c_fps = c_speed + 6
         c_eta = c_fps + 5
-        scr.hline(y, 0, w, "─", S["dim"], title="任务 %d/%d" % (len(jobs), len(v.jobs)))
+        scr.hline(y, 0, w, "─", S["line"], title="任务 %d/%d" % (len(jobs), len(v.jobs)))
         y += 1
         head = util.pad_disp("序号", c_st - c_id)
         head += util.pad_disp("状态", c_st and 6)
@@ -925,7 +927,7 @@ class App:
     def draw_detail(self, scr, y, w, height):
         v = self.view
         job = self.selected()
-        scr.hline(y, 0, w, "─", S["dim"], title="详情 · %s" % ("日志" if self.show_log else "任务"))
+        scr.hline(y, 0, w, "─", S["line"], title="详情 · %s" % ("日志" if self.show_log else "任务"))
         y += 1
         if not job:
             scr.put(y, 2, "没有选中的任务", S["dim"])
@@ -972,7 +974,7 @@ class App:
             used += 1
         remain = height - 1 - used
         if remain >= 3 and not self.show_log and v.events:
-            scr.hline(y, 0, w, "─", S["dim"], title="最近事件")
+            scr.hline(y, 0, w, "─", S["line"], title="最近事件")
             y += 1
             for ev in v.events[:remain - 1]:
                 lvl = ev.get("level") or "info"
@@ -1124,7 +1126,7 @@ class App:
             kind, a, b = rows[idx]
             y = y0 + 2 + i
             if kind == "sec":
-                scr.hline(y, x0 + 2, bw - 4, "─", S["dim"], title=a)
+                scr.hline(y, x0 + 2, bw - 4, "─", S["line"], title=a)
             else:
                 scr.put(y, x0 + 3, util.pad_disp(a, 26), S["accent"], maxw=26)
                 scr.put(y, x0 + 30, util.truncate_disp(b, bw - 32), S["norm"])
