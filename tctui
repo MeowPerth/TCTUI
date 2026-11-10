@@ -1,0 +1,6 @@
+#!/bin/sh
+# ffmpeg-tui launcher
+DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+export TCTUI_HOME="${TCTUI_HOME:-$DIR}"
+export PYTHONPATH="$DIR/lib${PYTHONPATH:+:$PYTHONPATH}"
+exec python3 -m tctui "$@"

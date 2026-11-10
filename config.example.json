@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "state_dir": "",
+  "paths": {
+    "ffmpeg": "/usr/bin/ffmpeg",
+    "ffprobe": "/usr/bin/ffprobe",
+    "nvidia_smi": "nvidia-smi"
+  },
+  "watch": [
+    "/media/videos"
+  ],
+  "scan": {
+    "exts": [
+      "mp4",
+      "mkv",
+      "avi",
+      "mov",
+      "flv",
+      "wmv",
+      "m4v",
+      "ts",
+      "m2ts",
+      "rmvb",
+      "webm",
+      "mpg",
+      "mpeg"
+    ],
+    "exclude_dirs": [
+      "@eaDir",
+      "#recycle",
+      "@tmp",
+      ".tctui",
+      "lost+found",
+      "@Recycle"
+    ],
+    "min_size_mb": 20,
+    "skip_if_codec": [
+      "hevc"
+    ],
+    "skip_if_tagged": "Transcoded By HServer",
+    "skip_if_pix_fmt_10bit": false,
+    "skip_if_source_bitrate_kbps": 0,
+    "import_legacy_log": true,
+    "legacy_log_name": "video_transcode_log.txt",
+    "follow_symlinks": false,
+    "max_files_per_scan": 20000,
+    "on_start": true
+  },
+  "series": {
+    "enabled": true,
+    "pattern": "^(?P<base>.+?)[._\\- ]?(?P<num>\\d{1,4})$",
+    "min_files": 2,
+    "delete_sources_after_success": true,
+    "require_same_codec": true,
+    "require_same_resolution": true
+  },
+  "encode": {
+    "video_codec": "hevc_nvenc",
+    "preset": "p7",
+    "cq": 27,
+    "out_ext": "mkv",
+    "audio": "copy",
+    "audio_bitrate": "192k",
+    "subs": "copy",
+    "max_width": 0,
+    "hdr": "auto",
+    "tune": "",
+    "tag": "Transcoded By HServer",
+    "extra_video_args": [],
+    "extra_args": [],
+    "fallback_software_decode": true,
+    "fallback_to_cpu": false,
+    "cpu_codec": "libx265",
+    "cpu_preset": "medium",
+    "cpu_parallel": 1,
+    "max_muxing_queue_size": 4096
+  },
+  "policy": {
+    "keep_original_min_savings_pct": 10,
+    "mark_kept_as_processed": true,
+    "verify_min_duration_ratio": 0.97,
+    "delete_temp_on_failure": true,
+    "min_free_disk_mb": 1024
+  },
+  "gpu": {
+    "enabled": true,
+    "exclude": [],
+    "reserve_vram_mb": 1024,
+    "min_free_vram_mb": 512,
+    "vram_per_job_mb": {
+      "720": 320,
+      "1080": 640,
+      "1440": 1000,
+      "2160": 1800
+    },
+    "max_parallel_per_gpu": 4,
+    "prefer": "auto"
+  },
+  "daemon": {
+    "poll_seconds": 0.5,
+    "sample_seconds": 2.0,
+    "history_hours": 2,
+    "log_level": "info"
+  },
+  "ui": {
+    "host": "",
+    "mouse": true,
+    "refresh_seconds": 1.0,
+    "sparkline_points": 40,
+    "log_tail_lines": 8,
+    "theme": "nvtop"
+  }
+}
