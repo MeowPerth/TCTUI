@@ -447,9 +447,10 @@ class App:
         if not db:
             v.jobs = []
             return
+        old_status = {j["id"]: j.get("status") for j in v.jobs}
         jobs = []
-        running = db.jobs(statuses=("running", "verifying"), limit=200, order="started ASC")
-        queued = db.jobs(statuses=("queued",), limit=300, order="id ASC")
+        running = db.jobs(statuses=("running", "verifying"), limit=2000, order="started ASC")
+        queued = db.jobs(statuses=("queued",), limit=100000, order="id ASC")
         finished = [dict(r) for r in db.query(
             """SELECT * FROM jobs WHERE status IN ('done','kept','failed','canceled','interrupted')
                ORDER BY COALESCE(finished, created) DESC LIMIT 200""")]
@@ -462,15 +463,38 @@ class App:
         v.queued_media = db.queue_media_seconds()
         v.fleet = db.fleet_history(600, 120)
         v.running_fps = db.running_fps()[0]
-        if self.sel_id is not None:
-            for i, j in enumerate(self.visible_jobs()):
-                if j["id"] == self.sel_id:
-                    self.sel_idx = i
-                    break
+        self._update_selection(old_status)
         self._clamp()
 
     def visible_jobs(self):
         return self.view.jobs
+
+    def _update_selection(self, old_status):
+        """Keep the cursor on the same task; if it just finished, stay on the row."""
+        jobs = self.visible_jobs()
+        if not jobs:
+            self.sel_idx = 0
+            self.sel_id = None
+            return
+        idx = None
+        if self.sel_id is not None:
+            for i, job in enumerate(jobs):
+                if job["id"] == self.sel_id:
+                    idx = i
+                    break
+        if idx is None:
+            self.sel_idx = util.clamp(self.sel_idx, 0, len(jobs) - 1)
+            self.sel_id = jobs[self.sel_idx]["id"]
+            return
+        was_active = old_status.get(self.sel_id) in ("running", "queued", "verifying", "staged")
+        now_finished = jobs[idx]["status"] in ("done", "kept", "failed", "canceled", "interrupted")
+        if was_active and now_finished:
+            # finished tasks move to the bottom; keep the cursor where it was
+            self.sel_idx = util.clamp(self.sel_idx, 0, len(jobs) - 1)
+            self.sel_id = jobs[self.sel_idx]["id"]
+        else:
+            self.sel_idx = idx
+            self.sel_id = jobs[idx]["id"]
 
     def selected(self):
         jobs = self.visible_jobs()
@@ -843,7 +867,7 @@ class App:
         c_speed = c_pct + 5
         c_fps = c_speed + 6
         c_eta = c_fps + 5
-        scr.hline(y, 0, w, "─", S["line"], title="任务 %d/%d" % (len(jobs), len(v.jobs)))
+        scr.hline(y, 0, w, "─", S["line"], title="任务 %d" % len(jobs))
         y += 1
         head = util.pad_disp("序号", c_st - c_id)
         head += util.pad_disp("状态", c_st and 6)

@@ -471,6 +471,34 @@ class TestBinaryPathSetting(unittest.TestCase):
         self.assertEqual(self.app.input_buf, "")
 
 
+class TestSelectionFollow(unittest.TestCase):
+    def _app(self):
+        tmp = tempfile.mkdtemp()
+        cfg = cfgmod.Config(home=tmp, overrides={})
+        from tctui import ui
+        app = ui.App(cfg)
+        app.view.gpus = []
+        return app
+
+    def test_stays_on_row_when_selected_task_finishes(self):
+        app = self._app()
+        app.view.jobs = [{"id": 1, "status": "running"}, {"id": 2, "status": "queued"}]
+        app.sel_id, app.sel_idx = 1, 0
+        app.view.jobs = [{"id": 2, "status": "running"}, {"id": 1, "status": "done"}]
+        app._update_selection({1: "running"})
+        self.assertEqual(app.sel_id, 2)      # next row, not the finished job
+        self.assertEqual(app.sel_idx, 0)
+
+    def test_follows_running_task_when_list_reorders(self):
+        app = self._app()
+        app.view.jobs = [{"id": 1, "status": "running"}, {"id": 2, "status": "queued"}]
+        app.sel_id, app.sel_idx = 1, 0
+        app.view.jobs = [{"id": 3, "status": "running"}, {"id": 1, "status": "running"}]
+        app._update_selection({1: "running"})
+        self.assertEqual(app.sel_id, 1)
+        self.assertEqual(app.sel_idx, 1)
+
+
 class TestUiScan(unittest.TestCase):
     def test_scan_runs_in_ui_process_without_daemon(self):
         tmp = tempfile.mkdtemp()
