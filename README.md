@@ -314,7 +314,7 @@ ffmpeg-tui/
 
 `queued → running → done / kept / failed / canceled / interrupted`
 
-* `kept`：转码成功但压缩率低于阈值，已删除输出、保留源文件
+* `kept`：转码成功但压缩率低于阈值，或输出没有变小，已删除输出、保留源文件
 * `interrupted`：worker 异常退出（kill -9 / 重启），源文件已自动还原
 * `failed`：ffmpeg 失败或校验失败，源文件保留，可 `r` 重试
 

@@ -471,6 +471,16 @@ class TestBinaryPathSetting(unittest.TestCase):
         self.assertEqual(self.app.input_buf, "")
 
 
+class TestKeepPolicy(unittest.TestCase):
+    def test_never_replace_with_bigger_output(self):
+        from tctui.scheduler import should_keep_source
+        self.assertTrue(should_keep_source(-5.0, 0))
+        self.assertTrue(should_keep_source(0.0, 0))
+        self.assertFalse(should_keep_source(2.0, 0))
+        self.assertTrue(should_keep_source(2.0, 10))
+        self.assertFalse(should_keep_source(12.0, 10))
+
+
 class TestUiConfigHotReload(unittest.TestCase):
     def test_ui_sees_external_config_change(self):
         tmp = tempfile.mkdtemp()

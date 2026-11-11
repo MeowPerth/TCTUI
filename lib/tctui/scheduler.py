@@ -23,6 +23,11 @@ ACTIVE = ("running", "verifying", "staged")
 FINISHED = ("done", "kept", "failed", "canceled")
 
 
+def should_keep_source(savings, threshold):
+    """Never replace a source with a bigger file, even when the threshold is 0."""
+    return savings <= 0 or (threshold > 0 and savings < threshold)
+
+
 class Scheduler:
     def __init__(self, cfg):
         self.cfg = cfg
@@ -369,7 +374,7 @@ class Scheduler:
             return
 
         threshold = float(self.cfg.get("policy.keep_original_min_savings_pct") or 0)
-        if threshold > 0 and savings < threshold:
+        if should_keep_source(savings, threshold):
             self._restore_source(job, meta)
             self._unlink(out_tmp)
             self._cleanup_temp(job, meta)
@@ -382,7 +387,10 @@ class Scheduler:
                         self.db.mark_processed(os.path.abspath(p), p, "kept")
                 else:
                     self.db.mark_processed(os.path.abspath(job["src"]), job["src"], "kept")
-            self.log("info", "任务 #%s 压缩率 %.1f%% < %.0f%%，保留源文件" % (jid, savings, threshold))
+            if savings <= 0:
+                self.log("info", "任务 #%s 输出没有变小 (%+.1f%%)，保留源文件" % (jid, savings))
+            else:
+                self.log("info", "任务 #%s 压缩率 %.1f%% < %.0f%%，保留源文件" % (jid, savings, threshold))
             return
 
         # rename temp -> final

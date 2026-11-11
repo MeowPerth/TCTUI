@@ -141,7 +141,7 @@ cd /volume1/docker/ffmpeg-tui
 
 | key | 默认 | 说明 |
 |---|---|---|
-| `keep_original_min_savings_pct` | `10` | 压缩率低于此值：删输出、留源文件、记"保留"。0=不拦 |
+| `keep_original_min_savings_pct` | `10` | 压缩率低于此值：删输出、留源文件、记"保留"。**输出不小于源文件时永远保留源**；`0` = 只要变小就替换 |
 | `mark_kept_as_processed` | `true` | "保留"是否记为已处理（关掉就会每次扫描重试） |
 | `verify_min_duration_ratio` | `0.97` | 输出时长/源时长短于此比例视为失败（防静默截断），0=关 |
 | `delete_temp_on_failure` | `true` | 失败时删除半截输出 |
