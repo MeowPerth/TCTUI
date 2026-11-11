@@ -471,6 +471,23 @@ class TestBinaryPathSetting(unittest.TestCase):
         self.assertEqual(self.app.input_buf, "")
 
 
+class TestUiConfigHotReload(unittest.TestCase):
+    def test_ui_sees_external_config_change(self):
+        tmp = tempfile.mkdtemp()
+        path = os.path.join(tmp, "config.json")
+        with open(path, "w") as fh:
+            json.dump({"policy": {"keep_original_min_savings_pct": 10}}, fh)
+        cfg = cfgmod.Config(home=tmp)
+        from tctui import ui
+        app = ui.App(cfg)
+        self.assertEqual(cfg.get("policy.keep_original_min_savings_pct"), 10)
+        time.sleep(1.05)
+        with open(path, "w") as fh:
+            json.dump({"policy": {"keep_original_min_savings_pct": 0}}, fh)
+        app.reload()
+        self.assertEqual(cfg.get("policy.keep_original_min_savings_pct"), 0)
+
+
 class TestTaskSequence(unittest.TestCase):
     def test_seq_is_stable_and_monotonic(self):
         tmp = tempfile.mkdtemp()

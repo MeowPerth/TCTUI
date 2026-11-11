@@ -428,6 +428,11 @@ class App:
         self.toast = (msg, time.time())
 
     def reload(self):
+        if not self.demo:
+            try:
+                self.cfg.reload_if_changed()
+            except Exception:  # noqa: BLE001
+                pass
         st = self.scan_state
         if st and st.get("done") and not st.get("notified"):
             st["notified"] = True
@@ -1262,6 +1267,8 @@ class App:
             return CODEC_LABEL.get(row["value"], str(row["value"]))
         if row.get("key") == "encode.max_width":
             return "原样" if not row["value"] else str(row["value"])
+        if row.get("key") == "policy.keep_original_min_savings_pct":
+            return "关" if not row["value"] else str(row["value"])
         v = row["value"]
         return ("%g" % v) if isinstance(v, float) else str(v)
 
