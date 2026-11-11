@@ -1005,6 +1005,8 @@ class App:
                 job.get("vcodec") or "?", res, util.fmt_bytes(job.get("src_size") or 0),
                 dur, job.get("gpu") if job.get("gpu") is not None else "-"), S["dim"]))
             prog = float(job.get("progress") or 0)
+            if job.get("status") in ("done", "kept"):
+                prog = 1.0
             sp = job.get("speed")
             status = STATUS_LABEL.get(job.get("status"), job.get("status"))
             if job.get("status") == "running":

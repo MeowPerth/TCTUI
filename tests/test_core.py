@@ -471,6 +471,26 @@ class TestBinaryPathSetting(unittest.TestCase):
         self.assertEqual(self.app.input_buf, "")
 
 
+class TestKeptProgress(unittest.TestCase):
+    def test_kept_detail_shows_100_percent(self):
+        tmp = tempfile.mkdtemp()
+        cfg = cfgmod.Config(home=tmp, overrides={})
+        from tctui import ui
+        app = ui.App(cfg, demo=True)
+        app.view.jobs = [{
+            "id": 5284, "seq": 5284, "src": "/x/白丝白虎揉到痉挛.mp4", "status": "kept",
+            "phase": "done", "progress": 0.98, "speed": 13.9, "width": 1080, "height": 606,
+            "src_size": 61100000, "duration": 473, "gpu": 1, "started": 1, "finished": 36,
+            "savings_pct": -1.9, "bytes_in": 61000000, "bytes_out": 62000000,
+        }]
+        app.sel_id = 5284
+        app.sel_idx = 0
+        scr = ui.Screen(120, 30)
+        app.draw(scr)
+        text = ui.DumpBackend(120, 30, color=False).draw(scr)
+        self.assertIn("进度 100%", text)
+
+
 class TestKeepPolicy(unittest.TestCase):
     def test_never_replace_with_bigger_output(self):
         from tctui.scheduler import should_keep_source

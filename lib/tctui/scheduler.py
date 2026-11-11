@@ -390,7 +390,7 @@ class Scheduler:
             self._cleanup_temp(job, meta)
             self.db.update_job(jid, status="kept", finished=util.now(), bytes_in=bytes_in,
                                bytes_out=bytes_out, savings_pct=round(savings, 2),
-                               phase="done", pid=None)
+                               phase="done", pid=None, progress=1.0)
             if self.cfg.get("policy.mark_kept_as_processed", True):
                 if merge_files:
                     for p in merge_files:
