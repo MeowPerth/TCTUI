@@ -402,6 +402,7 @@ class App:
         self.log_scroll = 0
         self.refresh_seconds = float(cfg.get("ui.refresh_seconds") or 1.0)
         self.scan_state = {}
+        self.daemon_stale = False
         self._db = None
 
     # -------------------------------------------------------------- data
@@ -449,6 +450,15 @@ class App:
         v.gpus = self.monitor.get()
         v.hb = util.read_json(self.cfg.heartbeat_path(), {}) or {}
         v.daemon_alive = bool(v.hb.get("pid") and util.pid_alive(v.hb.get("pid")))
+        self.daemon_stale = False
+        if v.daemon_alive:
+            try:
+                started = float(v.hb.get("started") or 0)
+                sched = os.path.join(self.cfg.py_path, "tctui", "scheduler.py")
+                if started and os.path.isfile(sched) and os.path.getmtime(sched) > started + 2:
+                    self.daemon_stale = True
+            except (OSError, ValueError, TypeError):
+                pass
         if not db:
             v.jobs = []
             return
@@ -647,11 +657,15 @@ class App:
             states.append("扫描中")
         if paused:
             states.append("已暂停")
+        if getattr(self, "daemon_stale", False):
+            states.append("守护需重启")
         if not states:
             states.append("派发中" if alive else "守护未运行")
         status = "%s %s " % ("●" if alive else "○", " · ".join(states))
         if not alive:
             sattr = S["errbg"]
+        elif getattr(self, "daemon_stale", False):
+            sattr = S["pause"]
         elif paused:
             sattr = S["pause"]
         elif scanning:

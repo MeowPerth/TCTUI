@@ -308,6 +308,14 @@ def cmd_doctor(args):
     print("\n== 守护进程 ==")
     print("  %s" % ("运行中 pid=%s  paused=%s busy=%s" % (pid, hb.get("paused"), hb.get("busy"))
                     if pid else "未运行  (tctui daemon --start)"))
+    if pid:
+        try:
+            started = float((hb or {}).get("started") or 0)
+            sched = os.path.join(cfg.py_path, "tctui", "scheduler.py")
+            if started and os.path.isfile(sched) and os.path.getmtime(sched) > started + 2:
+                print("  【警告】守护进程运行的是旧代码，请执行: tctui daemon --stop && tctui daemon --start")
+        except (OSError, ValueError, TypeError):
+            pass
 
     print("\n== 残留临时文件 ==")
     orphans = find_orphans(cfg)
