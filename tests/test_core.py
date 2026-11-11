@@ -479,6 +479,8 @@ class TestKeepPolicy(unittest.TestCase):
         self.assertFalse(should_keep_source(2.0, 0))
         self.assertTrue(should_keep_source(2.0, 10))
         self.assertFalse(should_keep_source(12.0, 10))
+        self.assertFalse(should_keep_source(2.0, -1))    # off: replace when smaller
+        self.assertTrue(should_keep_source(-2.0, -1))    # but never grow
 
 
 class TestUiConfigHotReload(unittest.TestCase):

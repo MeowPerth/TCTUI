@@ -24,8 +24,18 @@ FINISHED = ("done", "kept", "failed", "canceled")
 
 
 def should_keep_source(savings, threshold):
-    """Never replace a source with a bigger file, even when the threshold is 0."""
-    return savings <= 0 or (threshold > 0 and savings < threshold)
+    """Decide whether to keep the source and throw the output away.
+
+    - output not smaller (savings <= 0): always keep (never grow a file)
+    - threshold < 0: "off" -> replace whenever the output is smaller
+    - threshold 0: replace only when strictly smaller (savings > 0)
+    - threshold N: require at least N% savings
+    """
+    if savings <= 0:
+        return True
+    if threshold is None or threshold < 0:
+        return False
+    return savings < threshold
 
 
 class Scheduler:

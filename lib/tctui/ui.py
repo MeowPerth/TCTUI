@@ -349,7 +349,7 @@ SETTINGS_DEFS = [
     {"key": "encode.hdr", "kind": "enum", "label": "HDR 处理",
      "values": ["auto", "force-sdr", "ignore"]},
     {"key": "policy.keep_original_min_savings_pct", "kind": "int",
-     "label": "低于此压缩率保留源", "values": [0, 3, 5, 8, 10, 12, 15, 20, 25, 30]},
+     "label": "低于此压缩率保留源", "values": [-1, 0, 3, 5, 8, 10, 12, 15, 20, 25, 30]},
     {"key": "policy.mark_kept_as_processed", "kind": "bool",
      "label": "\u201c保留\u201d记为已处理"},
     {"key": "policy.verify_min_duration_ratio", "kind": "enum", "label": "时长校验比例",
@@ -1268,7 +1268,8 @@ class App:
         if row.get("key") == "encode.max_width":
             return "原样" if not row["value"] else str(row["value"])
         if row.get("key") == "policy.keep_original_min_savings_pct":
-            return "关" if not row["value"] else str(row["value"])
+            v = row["value"]
+            return "关" if v is None or float(v) < 0 else str(v)
         v = row["value"]
         return ("%g" % v) if isinstance(v, float) else str(v)
 
