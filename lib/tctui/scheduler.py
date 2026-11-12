@@ -262,6 +262,7 @@ class Scheduler:
         env["TCTUI_HOME"] = cfg.home
         env["PYTHONPATH"] = cfg.py_path + os.pathsep + env.get("PYTHONPATH", "")
         env["PYTHONUNBUFFERED"] = "1"
+        env["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
         logfh = open(spec["log"], "a", encoding="utf-8", errors="replace")
         try:
             proc = subprocess.Popen(

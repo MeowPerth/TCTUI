@@ -333,6 +333,10 @@ class Worker:
 
     # ---------------------------------------------------------------- main
     def run(self):
+        # nvidia-smi orders GPUs by PCI bus; CUDA's default FASTEST_FIRST order
+        # can swap cards (e.g. the 2060 and a 2080 Ti). Force the same order so
+        # -hwaccel_device N / -gpu N really mean nvidia-smi index N.
+        os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
         spec = self.spec
         util.ensure_dir(os.path.dirname(self.log_path))
         util.ensure_dir(os.path.dirname(self.progress_path))
