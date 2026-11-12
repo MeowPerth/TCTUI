@@ -234,8 +234,21 @@ class Worker:
                 transfer = "smpte2084"
             if primaries in ("unknown", "reserved", ""):
                 primaries = "bt2020"
-            args += ["-color_primaries", primaries, "-color_trc", transfer,
-                     "-colorspace", "bt2020nc", "-color_range", "tv"]
+            prim_code = {"bt2020": 9, "bt709": 1, "smpte170m": 6,
+                         "smpte240m": 7}.get(primaries, 9)
+            trc_code = {"smpte2084": 16, "arib-std-b67": 18, "bt709": 1,
+                        "smpte170m": 6}.get(transfer, 16)
+            codec_name = (enc.get("video_codec") or "")
+            args += ["-color_range", "tv"]
+            # -colorspace/-color_primaries/-color_trc on the output make ffmpeg
+            # insert auto_scale on CUDA frames; set the metadata in the bitstream
+            # instead.
+            if codec_name.startswith("hevc"):
+                args += ["-bsf:v", "hevc_metadata=colour_primaries=%d:transfer_characteristics=%d:matrix_coefficients=9"
+                         % (prim_code, trc_code)]
+            elif codec_name.startswith("h264"):
+                args += ["-bsf:v", "h264_metadata=colour_primaries=%d:transfer_characteristics=%d:matrix_coefficients=9"
+                         % (prim_code, trc_code)]
         elif mode == "cpu" and hdr:
             args += ["-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709"]
 

@@ -776,6 +776,12 @@ class TestWorkerArgs(unittest.TestCase):
         self.assertNotIn("-pix_fmt", args)          # CUDA frames: filter sets p010le
         self.assertEqual(args[args.index("-profile:v") + 1], "main10")
 
+    def test_hdr_uses_bitstream_metadata(self):
+        w = self._worker(bit=10, hdr=True)
+        args, _hw = w.build_transcode_args("/x/in.mp4", "gpu", 1)
+        self.assertNotIn("-colorspace", args)
+        self.assertEqual(args[args.index("-bsf:v") + 1].split("=")[0], "hevc_metadata")
+
     def test_encoder_metadata(self):
         w = self._worker()
         args, _hw = w.build_transcode_args("/x/in.mp4", "gpu", 1)

@@ -12,7 +12,7 @@ import sys
 from . import util
 
 APP_NAME = "ffmpeg-tui"
-APP_VERSION = "0.1.5"
+APP_VERSION = "0.1.6"
 
 DEFAULT_FFMPEG_DIR = "/volume1/Software/其他软件/视频编辑工具/FFmpeg/ffmpeg-n7.1.3-40-gcddd06f3b9-linux64-gpl-7.1/bin"
 
