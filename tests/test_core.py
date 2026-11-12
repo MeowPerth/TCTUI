@@ -776,6 +776,12 @@ class TestWorkerArgs(unittest.TestCase):
         self.assertNotIn("-pix_fmt", args)          # CUDA frames: filter sets p010le
         self.assertEqual(args[args.index("-profile:v") + 1], "main10")
 
+    def test_encoder_metadata(self):
+        w = self._worker()
+        args, _hw = w.build_transcode_args("/x/in.mp4", "gpu", 1)
+        self.assertIn("encoder=ffmpeg", args)
+        self.assertNotIn("encoder=tctui/0.1", args)
+
     def test_hwdec_setup_failure_is_recognized(self):
         from tctui.worker import Worker
         self.assertTrue(Worker._hwdec_setup_failed(

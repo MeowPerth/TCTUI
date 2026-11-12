@@ -246,7 +246,7 @@ class Worker:
         tag = enc.get("tag")
         if tag:
             args += ["-metadata", "comment=%s" % tag]
-        args += ["-metadata", "encoder=tctui/%s" % "0.1"]
+        args += ["-metadata", "encoder=ffmpeg"]
         args += ["-max_muxing_queue_size", str(int(enc.get("max_muxing_queue_size") or 4096))]
         for extra in (enc.get("extra_video_args") or []):
             args.append(str(extra))
