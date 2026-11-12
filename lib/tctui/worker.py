@@ -153,7 +153,9 @@ class Worker:
                 elif bit_depth > 8 or hdr:
                     hw_filter = "scale_cuda=iw:-2:format=p010le"
                 else:
-                    hw_filter = "scale_cuda=iw:-2"
+                    # declare the output format explicitly; otherwise ffmpeg may
+                    # try to insert a CPU auto_scale between scale_cuda and nvenc
+                    hw_filter = "scale_cuda=iw:-2:format=yuv420p"
             elif need_scale:
                 tgt_h = int(round(height * max_width / float(width) / 2.0)) * 2 if width and height else -2
                 vf.append("scale=%d:%d" % (max_width, max(2, tgt_h)))
@@ -188,8 +190,13 @@ class Worker:
             if gpu is not None and gpu >= 0:
                 presets += ["-gpu", str(gpu)]
             args += presets
-            if (bit_depth > 8 or hdr) and not use_hwdec:
-                args += ["-pix_fmt", "p010le"]
+            if bit_depth > 8 or hdr:
+                # With CUDA frames the filter already outputs p010le; adding
+                # -pix_fmt here makes ffmpeg insert auto_scale (exit -38).
+                if not use_hwdec:
+                    args += ["-pix_fmt", "p010le"]
+                if (enc.get("video_codec") or "").startswith("hevc"):
+                    args += ["-profile:v", "main10"]
         else:
             cpu = enc.get("cpu_codec") or "libx265"
             args += ["-c:v", cpu, "-preset", str(enc.get("cpu_preset") or "medium")]
