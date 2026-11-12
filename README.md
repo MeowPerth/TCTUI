@@ -51,7 +51,7 @@ cd /path/to/tctui
 [Releases](https://github.com/MeowPerth/TCTUI/releases/latest) 下载源码包，或直接用 git clone：
 
 ```bash
-tar xzf tctui-0.1.3.tar.gz && cd tctui-0.1.3
+tar xzf tctui-0.1.4.tar.gz && cd tctui-0.1.4
 # 或者 git clone https://github.com/MeowPerth/TCTUI.git && cd TCTUI
 ```
 

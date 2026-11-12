@@ -764,7 +764,7 @@ class TestWorkerArgs(unittest.TestCase):
         self.assertEqual(args[args.index("-threads") + 1], "4")
         self.assertIn("-noautoscale", args)
         fc = args[args.index("-filter_complex") + 1]
-        self.assertIn("[0:V:0]scale_cuda=iw:-2:format=yuv420p", fc)
+        self.assertIn("[0:V:0]scale_cuda=iw:-2:format=nv12", fc)
         self.assertEqual(args[args.index("-map") + 1], "[out]")
         self.assertNotIn("-vf", args)
 
